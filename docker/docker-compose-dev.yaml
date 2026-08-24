@@ -1,0 +1,49 @@
+name: financial-system-backend-dev
+
+services:
+  mysql-bank-a:
+    image: mysql:8.4.11
+    profiles:
+      - bank-a
+    environment:
+      MYSQL_DATABASE: bank_a
+      MYSQL_USER: bank_a
+      MYSQL_PASSWORD: bank_a_dev_password
+      MYSQL_ROOT_PASSWORD: bank_a_root_dev_password
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - bank-a-data:/var/lib/mysql
+
+  mysql-bank-b:
+    image: mysql:8.4.11
+    profiles:
+      - bank-b
+    environment:
+      MYSQL_DATABASE: bank_b
+      MYSQL_USER: bank_b
+      MYSQL_PASSWORD: bank_b_dev_password
+      MYSQL_ROOT_PASSWORD: bank_b_root_dev_password
+    ports:
+      - "127.0.0.1:3308:3306"
+    volumes:
+      - bank-b-data:/var/lib/mysql
+
+  mysql-settlement:
+    image: mysql:8.4.11
+    profiles:
+      - settlement
+    environment:
+      MYSQL_DATABASE: settlement
+      MYSQL_USER: settlement
+      MYSQL_PASSWORD: settlement_dev_password
+      MYSQL_ROOT_PASSWORD: settlement_root_dev_password
+    ports:
+      - "127.0.0.1:3309:3306"
+    volumes:
+      - settlement-data:/var/lib/mysql
+
+volumes:
+  bank-a-data:
+  bank-b-data:
+  settlement-data:
