@@ -154,7 +154,8 @@
 
 ## 계좌번호 규칙
 
-- 계좌를 생성할 때 임의의 UUID를 `account_number`로 발급한다.
+- 계좌 생성 서비스의 계좌번호 생성기가 임의의 UUID를 `account_number`로 발급한다.
+- 생성기는 발급한 계좌번호를 `Account.create`에 전달하고, `Account`는 직접 무작위 값을 생성하지 않는다.
 - `account_number`는 은행 DB 안에서 고유하고 반드시 존재해야 한다.
 - UUID 충돌 가능성과 무관하게 DB 고유 제약을 둔다.
 - 한 번 발급한 `account_number`는 변경하지 않는다.
