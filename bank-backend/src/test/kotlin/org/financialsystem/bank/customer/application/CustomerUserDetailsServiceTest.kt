@@ -10,6 +10,7 @@ import org.mockito.BDDMockito.given
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.security.core.userdetails.UsernameNotFoundException
+import org.springframework.test.util.ReflectionTestUtils
 
 @ExtendWith(MockitoExtension::class)
 class CustomerUserDetailsServiceTest {
@@ -21,6 +22,7 @@ class CustomerUserDetailsServiceTest {
         val loginId = "Jun0"
         val passwordHash = "passwordHash"
         val customer = Customer.create(loginId, passwordHash)
+        ReflectionTestUtils.setField(customer, "id", 1L)
         given(customerRepository.findByLoginId(loginId))
             .willReturn(customer)
 

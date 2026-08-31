@@ -1,7 +1,6 @@
 package org.financialsystem.bank.customer.application
 
 import org.financialsystem.bank.customer.infrastructure.CustomerRepository
-import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
@@ -16,10 +15,10 @@ class CustomerUserDetailsService(
             customerRepository.findByLoginId(username)
                 ?: throw UsernameNotFoundException("고객을 찾을 수 없습니다: $username")
 
-        return User(
+        return CustomerPrincipal(
+            customer.id!!,
             customer.loginId,
             customer.passwordHash,
-            emptyList(),
         )
     }
 }
