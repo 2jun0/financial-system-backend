@@ -36,4 +36,20 @@ class AccountServiceTest {
         assertThat(account.name).isEqualTo(name)
         assertThat(account.accountNumber).isEqualTo(accountNumber)
     }
+
+    @Test
+    fun `고객 ID에 해당하는 계좌 목록을 반환한다`() {
+        val customerId = 1L
+        val accounts =
+            listOf(
+                Account.create("account-number-1", customerId, "생활비 계좌"),
+                Account.create("account-number-2", customerId, "저축 계좌"),
+            )
+        val accountService = AccountService(accountRepository, accountNumberGenerator)
+        given(accountRepository.findAllByCustomerId(customerId)).willReturn(accounts)
+
+        val result = accountService.getAllAccount(customerId)
+
+        assertThat(result).containsExactlyInAnyOrderElementsOf(accounts)
+    }
 }

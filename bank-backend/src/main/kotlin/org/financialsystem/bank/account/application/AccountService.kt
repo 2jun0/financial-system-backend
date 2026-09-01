@@ -23,4 +23,6 @@ class AccountService(
 
         return accountRepository.save(account)
     }
+
+    fun getAllAccount(customerId: Long): List<Account> = accountRepository.findAllByCustomerId(customerId)
 }

@@ -2,10 +2,12 @@ package org.financialsystem.bank.account.presentation
 
 import org.financialsystem.bank.account.application.AccountService
 import org.financialsystem.bank.account.application.dto.CreateAccountRequest
+import org.financialsystem.bank.account.presentation.dto.AccountResponse
 import org.financialsystem.bank.account.presentation.dto.CreateAccountResponse
 import org.financialsystem.bank.customer.application.CustomerPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -25,5 +27,16 @@ class AccountController(
     ): CreateAccountResponse {
         val account = accountService.createAccount(principal.customerId, createAccountRequest)
         return CreateAccountResponse.from(account)
+    }
+
+    @GetMapping
+    @ResponseStatus(HttpStatus.OK)
+    fun getAccounts(
+        @AuthenticationPrincipal principal: CustomerPrincipal,
+    ): List<AccountResponse> {
+        val accounts = accountService.getAllAccount(principal.customerId)
+        return accounts.map {
+            AccountResponse.from(it)
+        }
     }
 }
