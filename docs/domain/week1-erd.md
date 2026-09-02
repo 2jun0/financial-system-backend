@@ -48,7 +48,7 @@ erDiagram
         text recipient_bank_code
         uuid recipient_account_number
         money amount
-        enum status
+        enum state
         timestamp created_at
         timestamp updated_at
     }
@@ -60,7 +60,7 @@ erDiagram
 - `ACCOUNT_TRANSACTION`의 `(transfer_key, type)` 조합은 고유하다.
 - `ACCOUNT_TRANSACTION.type`은 `DEBIT`, `CREDIT`, `COMPENSATION` 중 하나다.
 - `DEBIT.amount`는 음수이고 `CREDIT.amount`와 `COMPENSATION.amount`는 양수다.
-- `TRANSFER.status`는 `송금중`, `성공`, `실패` 중 하나다.
+- `TRANSFER.state`는 `송금중`, `성공`, `실패` 중 하나다.
 - `TRANSFER.transfer_key`와 `ACCOUNT_TRANSACTION.transfer_key`는 FK로 강제하지 않는다. 수취 은행의 입금 기록과 시연용 내부 이체 기록처럼 같은 은행 DB에 대응하는 `TRANSFER` 행이 없는 경우도 있기 때문이다.
 
 ## 중앙 결제 DB
@@ -131,4 +131,3 @@ flowchart LR
 - 중앙 결제 거래는 송금 은행과 수취 은행을 각각 하나의 `BANK` 행으로 참조한다.
 - 고객 계좌는 은행 DB에만 존재하며 중앙 결제 DB는 계좌번호를 참조 정보로만 저장한다.
 - 은행별 결제잔액은 별도 결제계좌 테이블 없이 `BANK.balance`에 저장한다.
-

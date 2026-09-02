@@ -71,7 +71,7 @@
 | `recipient_bank_code` | 수취 은행 식별자 | 필수 |
 | `recipient_account_number` | 수취 계좌번호 | 필수 |
 | `amount` | 송금 요청 금액 | 0보다 큰 정수 |
-| `status` | 송금 진행 상태 | `송금중`, `성공`, `실패` 중 하나 |
+| `state` | 송금 진행 상태 | `송금중`, `성공`, `실패` 중 하나 |
 | `created_at` | 송금 생성 시각 | 미정 |
 | `updated_at` | 송금 상태가 마지막으로 변경된 시각 | 미정 |
 
