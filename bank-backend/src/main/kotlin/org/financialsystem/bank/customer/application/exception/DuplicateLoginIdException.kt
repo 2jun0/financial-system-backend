@@ -1,5 +1,7 @@
 package org.financialsystem.bank.customer.application.exception
 
+import org.financialsystem.bank.support.exception.ConflictException
+
 class DuplicateLoginIdException(
-    loginId: String,
-) : RuntimeException("이미 사용 중인 로그인 아이디입니다: $loginId")
+    message: String,
+) : ConflictException("DUPLICATE_LOGIN_ID", message)

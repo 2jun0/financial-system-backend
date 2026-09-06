@@ -14,7 +14,7 @@ class AuthService(
 ) {
     fun registerCustomer(registerRequest: RegisterRequest) {
         if (customerRepository.existsByLoginId(registerRequest.loginId)) {
-            throw DuplicateLoginIdException(registerRequest.loginId)
+            throw DuplicateLoginIdException("이미 사용 중인 로그인 아이디입니다: ${registerRequest.loginId}")
         }
 
         val customer =

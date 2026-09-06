@@ -5,8 +5,10 @@ import jakarta.servlet.http.HttpServletResponse
 import org.financialsystem.bank.customer.application.AuthService
 import org.financialsystem.bank.customer.application.dto.RegisterRequest
 import org.financialsystem.bank.customer.presentation.dto.LoginRequest
+import org.financialsystem.bank.customer.presentation.exception.InvalidCredentialsException
 import org.springframework.http.HttpStatus
 import org.springframework.security.authentication.AuthenticationManager
+import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy
@@ -46,13 +48,18 @@ class AuthController(
                 loginRequest.password,
             )
 
-        val authentication = authenticationManager.authenticate(authenticationToken)
-        sessionAuthenticationStrategy.onAuthentication(authentication, request, response)
+        try {
+            val authentication = authenticationManager.authenticate(authenticationToken)
 
-        val securityContext = SecurityContextHolder.createEmptyContext()
-        securityContext.authentication = authentication
+            sessionAuthenticationStrategy.onAuthentication(authentication, request, response)
 
-        SecurityContextHolder.setContext(securityContext)
-        securityContextRepository.saveContext(securityContext, request, response)
+            val securityContext = SecurityContextHolder.createEmptyContext()
+            securityContext.authentication = authentication
+
+            SecurityContextHolder.setContext(securityContext)
+            securityContextRepository.saveContext(securityContext, request, response)
+        } catch (exception: BadCredentialsException) {
+            throw InvalidCredentialsException("로그인 아이디 또는 비밀번호가 올바르지 않습니다.", exception)
+        }
     }
 }
