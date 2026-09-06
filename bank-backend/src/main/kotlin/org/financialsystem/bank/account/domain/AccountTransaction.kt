@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.support.persistence.IdCreatedAtEntity
 
 @Entity
@@ -64,13 +65,49 @@ class AccountTransaction private constructor(
         protected set
 
     companion object {
-        fun create(
+        fun recordDebit(
             accountId: Long,
             transferKey: String,
-            otherBankCode: String,
-            otherAccountNumber: String,
-            amount: Long,
-            type: AccountTransactionType,
-        ) = AccountTransaction(accountId, transferKey, otherBankCode, otherAccountNumber, amount, type)
+            recipientBankCode: String,
+            recipientAccountNumber: String,
+            amount: PositiveAmount,
+        ) = AccountTransaction(
+            accountId,
+            transferKey,
+            recipientBankCode,
+            recipientAccountNumber,
+            -amount.value,
+            AccountTransactionType.DEBIT,
+        )
+
+        fun recordCredit(
+            accountId: Long,
+            transferKey: String,
+            sourceBankCode: String,
+            sourceAccountNumber: String,
+            amount: PositiveAmount,
+        ) = AccountTransaction(
+            accountId,
+            transferKey,
+            sourceBankCode,
+            sourceAccountNumber,
+            amount.value,
+            AccountTransactionType.CREDIT,
+        )
+
+        fun recordCompensation(
+            accountId: Long,
+            transferKey: String,
+            recipientBankCode: String,
+            recipientAccountNumber: String,
+            amount: PositiveAmount,
+        ) = AccountTransaction(
+            accountId,
+            transferKey,
+            recipientBankCode,
+            recipientAccountNumber,
+            amount.value,
+            AccountTransactionType.COMPENSATION,
+        )
     }
 }

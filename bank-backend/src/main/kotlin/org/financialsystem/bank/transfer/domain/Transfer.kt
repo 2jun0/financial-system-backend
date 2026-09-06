@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.support.persistence.IdCreatedAtEntity
 import org.springframework.data.annotation.LastModifiedDate
 import java.time.LocalDateTime
@@ -26,13 +27,9 @@ class Transfer private constructor(
     sourceAccountId: Long,
     recipientBankCode: String,
     recipientAccountNumber: String,
-    amount: Long,
+    amount: PositiveAmount,
     state: TransferState,
 ) : IdCreatedAtEntity() {
-    init {
-        require(amount > 0) { "송금액은 0보다 커야 합니다. 입력값: $amount" }
-    }
-
     @Column(name = "transfer_key", nullable = false, updatable = false)
     var transferKey: String = transferKey
         protected set
@@ -50,7 +47,7 @@ class Transfer private constructor(
         protected set
 
     @Column(name = "amount", nullable = false, updatable = false)
-    var amount: Long = amount
+    var amount: Long = amount.value
         protected set
 
     @Column(name = "state", nullable = false)
@@ -69,7 +66,7 @@ class Transfer private constructor(
             sourceAccountId: Long,
             recipientBankCode: String,
             recipientAccountNumber: String,
-            amount: Long,
+            amount: PositiveAmount,
         ) = Transfer(
             transferKey,
             sourceAccountId,

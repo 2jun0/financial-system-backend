@@ -5,6 +5,8 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.financialsystem.bank.account.domain.exception.InsufficientBalanceException
+import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.support.persistence.IdCreatedAtEntity
 import org.springframework.data.annotation.LastModifiedDate
 import java.time.LocalDateTime
@@ -53,14 +55,14 @@ class Account private constructor(
         ): Account = Account(accountNumber, customerId, name)
     }
 
-    fun debit(amount: Long) {
-        require(amount > 0) { "출금액은 0보다 커야 합니다. 입력값: $amount" }
-        require(balance >= amount) { "잔액이 부족합니다. 현재 잔액: $balance, 출금액: $amount" }
-        balance -= amount
+    fun debit(amount: PositiveAmount) {
+        if (balance < amount.value) {
+            throw InsufficientBalanceException("잔액이 부족합니다. 현재 잔액: $balance, 출금액: $amount")
+        }
+        balance -= amount.value
     }
 
-    fun credit(amount: Long) {
-        require(amount > 0) { "입금액은 0보다 커야 합니다. 입력값: $amount" }
-        balance = Math.addExact(balance, amount)
+    fun credit(amount: PositiveAmount) {
+        balance = Math.addExact(balance, amount.value)
     }
 }
