@@ -2,9 +2,8 @@ package org.financialsystem.bank.transfer.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.financialsystem.bank.money.domain.PositiveAmount
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
 
 class TransferTest {
     @Test
@@ -12,14 +11,6 @@ class TransferTest {
         val transfer = initiateTransfer()
 
         assertThat(transfer.state).isEqualTo(TransferState.TRANSFERRING)
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = [0, -1, -100])
-    fun `송금액이 0 이하이면 송금을 개시할 수 없다`(amount: Long) {
-        assertThatThrownBy {
-            initiateTransfer(amount)
-        }.isInstanceOf(IllegalArgumentException::class.java)
     }
 
     @Test
@@ -60,7 +51,7 @@ class TransferTest {
         }.isInstanceOf(IllegalStateException::class.java)
     }
 
-    private fun initiateTransfer(amount: Long = 100L) =
+    private fun initiateTransfer(amount: PositiveAmount = PositiveAmount(100L)) =
         Transfer.initiate(
             transferKey = "transfer-key",
             sourceAccountId = 1L,
