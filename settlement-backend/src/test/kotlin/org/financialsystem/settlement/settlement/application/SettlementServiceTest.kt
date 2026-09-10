@@ -7,6 +7,7 @@ import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
 import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
+import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
@@ -16,7 +17,10 @@ import org.mockito.ArgumentCaptor
 import org.mockito.BDDMockito.given
 import org.mockito.Mock
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.junit.jupiter.MockitoExtension
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.test.util.ReflectionTestUtils
 
 @ExtendWith(MockitoExtension::class)
@@ -103,5 +107,61 @@ class SettlementServiceTest {
         assertThatThrownBy { settlementService.initiate(initiateSettlementRequest) }.isInstanceOf(
             BankNotFoundException::class.java,
         )
+    }
+
+    @Test
+    fun `수취 확인 대기 상태의 결제를 조회한다`() {
+        val bankA = Bank.create("BANK_A")
+        ReflectionTestUtils.setField(bankA, "id", 1L)
+        val bankB = Bank.create("BANK_B")
+        ReflectionTestUtils.setField(bankB, "id", 2L)
+        val bankC = Bank.create("BANK_C")
+        ReflectionTestUtils.setField(bankC, "id", 3L)
+        val pendingSettlements =
+            mutableListOf(
+                Settlement.initiate(
+                    "transferKey-1",
+                    2L,
+                    "BANK_B_ACCOUNT",
+                    1L,
+                    "BANK_A_ACCOUNT",
+                    PositiveAmount(10_000),
+                ),
+                Settlement.initiate(
+                    "transferKey-2",
+                    3L,
+                    "BANK_C_ACCOUNT",
+                    1L,
+                    "BANK_A_ACCOUNT",
+                    PositiveAmount(20_000),
+                ),
+            )
+        given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
+        given(
+            settlementRepository.findByRecipientBankIdAndState(
+                1L,
+                SettlementState.RECIPIENT_VALIDATION_PENDING,
+                PageRequest.of(0, 100, Sort.by("createdAt", "id").ascending()),
+            ),
+        ).willReturn(pendingSettlements)
+        given(bankRepository.findAllById(setOf(2L, 3L))).willReturn(listOf(bankB, bankC))
+        val settlementService = SettlementService(bankRepository, settlementRepository)
+
+        val responses = settlementService.findPendingSettlements("BANK_A")
+
+        assertThat(responses).containsExactly(
+            PendingSettlementResponse("transferKey-1", "BANK_B", "BANK_B_ACCOUNT", "BANK_A", "BANK_A_ACCOUNT", 10_000),
+            PendingSettlementResponse("transferKey-2", "BANK_C", "BANK_C_ACCOUNT", "BANK_A", "BANK_A_ACCOUNT", 20_000),
+        )
+    }
+
+    @Test
+    fun `수취 확인 대기 상태의 결제를 조회할 때 수취 은행이 존재하지 않으면 예외를 던진다`() {
+        given(bankRepository.findByBankCode("BANK_A")).willReturn(null)
+        val settlementService = SettlementService(bankRepository, settlementRepository)
+
+        assertThatThrownBy { settlementService.findPendingSettlements("BANK_A") }
+            .isInstanceOf(BankNotFoundException::class.java)
+        verifyNoInteractions(settlementRepository)
     }
 }
