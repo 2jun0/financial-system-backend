@@ -26,7 +26,7 @@ class SettlementController(
 
     @GetMapping("/settlements/pending")
     @ResponseStatus(HttpStatus.OK)
-    fun find(
+    fun findPendingSettlements(
         @RequestParam("recipientBankCode") recipientBankCode: String,
     ): List<PendingSettlementResponse> = settlementService.findPendingSettlements(recipientBankCode)
 }

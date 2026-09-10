@@ -110,7 +110,7 @@ class SettlementServiceTest {
     }
 
     @Test
-    fun `수취 확인 대기 상태의 결제를 조회한다`() {
+    fun `수취 검증 대기 상태의 결제를 조회한다`() {
         val bankA = Bank.create("BANK_A")
         ReflectionTestUtils.setField(bankA, "id", 1L)
         val bankB = Bank.create("BANK_B")
@@ -156,7 +156,7 @@ class SettlementServiceTest {
     }
 
     @Test
-    fun `수취 확인 대기 상태의 결제를 조회할 때 수취 은행이 존재하지 않으면 예외를 던진다`() {
+    fun `수취 검증 대기 상태의 결제를 조회할 때 수취 은행이 존재하지 않으면 예외를 던진다`() {
         given(bankRepository.findByBankCode("BANK_A")).willReturn(null)
         val settlementService = SettlementService(bankRepository, settlementRepository)
 
