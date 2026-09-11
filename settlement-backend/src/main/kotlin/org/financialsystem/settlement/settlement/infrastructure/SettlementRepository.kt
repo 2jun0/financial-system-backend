@@ -10,5 +10,5 @@ interface SettlementRepository : JpaRepository<Settlement, Long> {
         recipientBankId: Long,
         state: SettlementState,
         pageable: Pageable,
-    ): MutableList<Settlement>
+    ): List<Settlement>
 }
