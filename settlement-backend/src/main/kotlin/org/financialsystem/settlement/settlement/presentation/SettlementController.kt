@@ -3,6 +3,7 @@ package org.financialsystem.settlement.settlement.presentation
 import jakarta.validation.Valid
 import org.financialsystem.settlement.settlement.application.SettlementService
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
+import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -17,12 +18,10 @@ class SettlementController(
     private val settlementService: SettlementService,
 ) {
     @PostMapping("/settlements")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.OK)
     fun initiate(
         @Valid @RequestBody request: InitiateSettlementRequest,
-    ) {
-        settlementService.initiate(request)
-    }
+    ): InitiateSettlementResponse = settlementService.initiate(request)
 
     @GetMapping("/settlements/pending")
     @ResponseStatus(HttpStatus.OK)

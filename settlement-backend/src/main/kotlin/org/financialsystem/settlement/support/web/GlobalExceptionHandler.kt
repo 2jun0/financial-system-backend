@@ -52,7 +52,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     private fun errorResponse(
         status: HttpStatus,
-        detail: String,
+        detail: String?,
         code: String,
     ): ProblemDetail =
         ProblemDetail.forStatusAndDetail(status, detail).apply {

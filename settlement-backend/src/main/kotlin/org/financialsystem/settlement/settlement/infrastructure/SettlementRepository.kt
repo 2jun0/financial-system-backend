@@ -11,4 +11,6 @@ interface SettlementRepository : JpaRepository<Settlement, Long> {
         state: SettlementState,
         pageable: Pageable,
     ): List<Settlement>
+
+    fun findByTransferKey(transferKey: String): Settlement?
 }

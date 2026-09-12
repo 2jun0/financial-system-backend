@@ -10,6 +10,7 @@ import org.financialsystem.settlement.settlement.application.dto.InitiateSettlem
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
+import org.financialsystem.settlement.settlement.exception.TransferKeyDuplicatedException
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -50,7 +51,7 @@ class SettlementServiceTest {
         given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
         val settlementService = SettlementService(bankRepository, settlementRepository)
 
-        settlementService.initiate(initiateSettlementRequest)
+        val response = settlementService.initiate(initiateSettlementRequest)
 
         val captor = ArgumentCaptor.forClass(Settlement::class.java)
 
@@ -64,6 +65,8 @@ class SettlementServiceTest {
             .isEqualTo(initiateSettlementRequest.amount.value)
         assertThat(savedSettlement.state)
             .isEqualTo(SettlementState.RECIPIENT_VALIDATION_PENDING)
+        assertThat(response.transferKey).isEqualTo("transferKey")
+        assertThat(response.state).isEqualTo(SettlementState.RECIPIENT_VALIDATION_PENDING)
     }
 
     @Test
@@ -106,6 +109,76 @@ class SettlementServiceTest {
 
         assertThatThrownBy { settlementService.initiate(initiateSettlementRequest) }.isInstanceOf(
             BankNotFoundException::class.java,
+        )
+    }
+
+    @Test
+    fun `동일한 결제 개시 요청은 새로 생성하지 않고 기존의 결제를 반환한다`() {
+        val initiateSettlementRequest =
+            InitiateSettlementRequest(
+                "transferKey",
+                "BANK_A",
+                "BANK_A_ACCOUNT",
+                "BANK_B",
+                "BANK_B_ACCOUNT",
+                PositiveAmount(10_000),
+            )
+        val bankA = Bank.create("BANK_A")
+        ReflectionTestUtils.setField(bankA, "id", 1L)
+        val bankB = Bank.create("BANK_B")
+        ReflectionTestUtils.setField(bankB, "id", 2L)
+        val existingSettlement =
+            Settlement
+                .initiate(
+                    "transferKey",
+                    1L,
+                    "BANK_A_ACCOUNT",
+                    2L,
+                    "BANK_B_ACCOUNT",
+                    PositiveAmount(10_000),
+                )
+        given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
+        given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
+        given(settlementRepository.findByTransferKey("transferKey")).willReturn(existingSettlement)
+        val settlementService = SettlementService(bankRepository, settlementRepository)
+
+        val response = settlementService.initiate(initiateSettlementRequest)
+
+        assertThat(response.transferKey).isEqualTo("transferKey")
+        assertThat(response.state).isEqualTo(SettlementState.RECIPIENT_VALIDATION_PENDING)
+    }
+
+    @Test
+    fun `같은 송금 키로 다른 결제를 개시하면 예외를 던진다`() {
+        val initiateSettlementRequest =
+            InitiateSettlementRequest(
+                "transferKey",
+                "BANK_A",
+                "BANK_A_ACCOUNT",
+                "BANK_B",
+                "BANK_B_ACCOUNT",
+                PositiveAmount(20_000),
+            )
+        val bankA = Bank.create("BANK_A")
+        ReflectionTestUtils.setField(bankA, "id", 1L)
+        val bankB = Bank.create("BANK_B")
+        ReflectionTestUtils.setField(bankB, "id", 2L)
+        val existingSettlement =
+            Settlement.initiate(
+                "transferKey",
+                1L,
+                "BANK_A_ACCOUNT",
+                2L,
+                "BANK_B_ACCOUNT",
+                PositiveAmount(10_000),
+            )
+        given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
+        given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
+        given(settlementRepository.findByTransferKey("transferKey")).willReturn(existingSettlement)
+        val settlementService = SettlementService(bankRepository, settlementRepository)
+
+        assertThatThrownBy { settlementService.initiate(initiateSettlementRequest) }.isInstanceOf(
+            TransferKeyDuplicatedException::class.java,
         )
     }
 

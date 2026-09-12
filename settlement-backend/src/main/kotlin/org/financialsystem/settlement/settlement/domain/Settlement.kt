@@ -94,4 +94,17 @@ class Settlement private constructor(
         require(state == SettlementState.RECIPIENT_VALIDATION_PENDING)
         state = SettlementState.REJECTED
     }
+
+    fun matchesInitiation(
+        sourceBankId: Long,
+        sourceAccountNumber: String,
+        recipientBankId: Long,
+        recipientAccountNumber: String,
+        amount: PositiveAmount,
+    ): Boolean =
+        this.sourceBankId == sourceBankId &&
+            this.sourceAccountNumber == sourceAccountNumber &&
+            this.recipientBankId == recipientBankId &&
+            this.recipientAccountNumber == recipientAccountNumber &&
+            this.amount == amount.value
 }
