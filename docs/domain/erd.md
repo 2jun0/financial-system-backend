@@ -1,4 +1,4 @@
-# 1주차 ERD
+# ERD
 
 은행 시스템과 중앙 결제 시스템은 DB를 공유하지 않는다. 아래 ERD의 자료형 표기는 물리 DB 자료형이 아니라 역할을 나타내는 개념 표기다.
 
@@ -67,8 +67,8 @@ erDiagram
 
 ```mermaid
 erDiagram
-    BANK ||--o{ SETTLEMENT_TRANSFER : source
-    BANK ||--o{ SETTLEMENT_TRANSFER : recipient
+    BANK ||--o{ SETTLEMENT : source
+    BANK ||--o{ SETTLEMENT : recipient
 
     BANK {
         identifier id PK
@@ -78,7 +78,7 @@ erDiagram
         timestamp updated_at
     }
 
-    SETTLEMENT_TRANSFER {
+    SETTLEMENT {
         identifier id PK
         uuid transfer_key UK
         identifier source_bank_id FK
@@ -86,7 +86,7 @@ erDiagram
         identifier recipient_bank_id FK
         uuid recipient_account_number
         money amount
-        enum status
+        enum state
         timestamp created_at
         timestamp updated_at
     }
@@ -94,10 +94,10 @@ erDiagram
 
 ### 중앙 결제 DB 제약
 
-- `BANK.bank_code`와 `SETTLEMENT_TRANSFER.transfer_key`는 각각 중앙 결제 DB 안에서 고유하다.
-- `SETTLEMENT_TRANSFER.source_bank_id`와 `recipient_bank_id`는 서로 달라야 한다.
-- `SETTLEMENT_TRANSFER.amount`는 0보다 큰 정수다.
-- `SETTLEMENT_TRANSFER.status`는 `RECIPIENT_VALIDATION_PENDING`, `SETTLED`, `REJECTED` 중 하나다.
+- `BANK.bank_code`와 `SETTLEMENT.transfer_key`는 각각 중앙 결제 DB 안에서 고유하다.
+- `SETTLEMENT.source_bank_id`와 `recipient_bank_id`는 서로 달라야 한다.
+- `SETTLEMENT.amount`는 0보다 큰 정수다.
+- `SETTLEMENT.state`는 `RECIPIENT_VALIDATION_PENDING`, `SETTLED`, `REJECTED` 중 하나다.
 - `SETTLED` 전이와 양쪽 `BANK.balance` 변경은 하나의 중앙 DB 트랜잭션으로 처리한다.
 
 ## 시스템 간 논리 연결
@@ -112,7 +112,7 @@ flowchart LR
     end
 
     subgraph C["중앙 결제 DB"]
-        ST["SettlementTransfer.transfer_key"]
+        ST["Settlement.transfer_key"]
     end
 
     subgraph B["은행 B DB"]
