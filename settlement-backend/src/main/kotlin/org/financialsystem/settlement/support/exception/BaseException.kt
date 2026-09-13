@@ -26,3 +26,9 @@ abstract class UnauthorizedException(
     message: String?,
     cause: Throwable? = null,
 ) : BaseException(code, message, cause)
+
+abstract class ForbiddenException(
+    code: String,
+    message: String?,
+    cause: Throwable? = null,
+) : BaseException(code, message, cause)

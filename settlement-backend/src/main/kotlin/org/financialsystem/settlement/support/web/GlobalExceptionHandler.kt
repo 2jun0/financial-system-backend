@@ -2,6 +2,7 @@ package org.financialsystem.settlement.support.web
 
 import org.financialsystem.settlement.support.exception.BaseException
 import org.financialsystem.settlement.support.exception.ConflictException
+import org.financialsystem.settlement.support.exception.ForbiddenException
 import org.financialsystem.settlement.support.exception.InvalidRequestException
 import org.financialsystem.settlement.support.exception.NotFoundException
 import org.financialsystem.settlement.support.exception.UnauthorizedException
@@ -19,6 +20,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
             ConflictException::class to HttpStatus.CONFLICT,
             InvalidRequestException::class to HttpStatus.BAD_REQUEST,
             UnauthorizedException::class to HttpStatus.UNAUTHORIZED,
+            ForbiddenException::class to HttpStatus.FORBIDDEN,
         )
 
     @ExceptionHandler(BaseException::class)
