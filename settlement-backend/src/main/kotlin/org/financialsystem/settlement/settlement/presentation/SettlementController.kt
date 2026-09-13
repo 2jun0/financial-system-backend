@@ -2,11 +2,15 @@ package org.financialsystem.settlement.settlement.presentation
 
 import jakarta.validation.Valid
 import org.financialsystem.settlement.settlement.application.SettlementService
+import org.financialsystem.settlement.settlement.application.dto.AcceptSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
+import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
+import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
@@ -28,4 +32,18 @@ class SettlementController(
     fun findPendingSettlements(
         @RequestParam("recipientBankCode") recipientBankCode: String,
     ): List<PendingSettlementResponse> = settlementService.findPendingSettlements(recipientBankCode)
+
+    @PostMapping("/settlements/{transferKey}/accept")
+    @ResponseStatus(HttpStatus.OK)
+    fun accept(
+        @PathVariable transferKey: String,
+        @Valid @RequestBody request: AcceptSettlementRequest,
+    ): SettlementResponse = settlementService.accept(transferKey, request)
+
+    @PostMapping("/settlements/{transferKey}/reject")
+    @ResponseStatus(HttpStatus.OK)
+    fun reject(
+        @PathVariable transferKey: String,
+        @Valid @RequestBody request: RejectSettlementRequest,
+    ): SettlementResponse = settlementService.reject(transferKey, request)
 }

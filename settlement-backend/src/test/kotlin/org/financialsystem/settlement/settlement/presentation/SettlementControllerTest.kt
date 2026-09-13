@@ -2,8 +2,11 @@ package org.financialsystem.settlement.settlement.presentation
 
 import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.financialsystem.settlement.settlement.application.SettlementService
+import org.financialsystem.settlement.settlement.application.dto.AcceptSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementResponse
+import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
+import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
@@ -61,5 +64,57 @@ class SettlementControllerTest {
             ).andExpect(status().isOk)
             .andExpect(jsonPath("$.transferKey").value("transfer-key"))
             .andExpect(jsonPath("$.state").value("RECIPIENT_VALIDATION_PENDING"))
+    }
+
+    @Test
+    fun `결제 승인 결과를 응답한다`() {
+        val request = AcceptSettlementRequest(recipientBankCode = "BANK_B")
+        given(settlementService.accept("transfer-key", request)).willReturn(
+            SettlementResponse(
+                transferKey = "transfer-key",
+                state = SettlementState.SETTLED,
+            ),
+        )
+
+        mockMvc
+            .perform(
+                post("/settlements/transfer-key/accept")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                            "recipientBankCode": "BANK_B"
+                        }
+                        """.trimIndent(),
+                    ),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.transferKey").value("transfer-key"))
+            .andExpect(jsonPath("$.state").value("SETTLED"))
+    }
+
+    @Test
+    fun `결제 거절 결과를 응답한다`() {
+        val request = RejectSettlementRequest(recipientBankCode = "BANK_B")
+        given(settlementService.reject("transfer-key", request)).willReturn(
+            SettlementResponse(
+                transferKey = "transfer-key",
+                state = SettlementState.REJECTED,
+            ),
+        )
+
+        mockMvc
+            .perform(
+                post("/settlements/transfer-key/reject")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                            "recipientBankCode": "BANK_B"
+                        }
+                        """.trimIndent(),
+                    ),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.transferKey").value("transfer-key"))
+            .andExpect(jsonPath("$.state").value("REJECTED"))
     }
 }
