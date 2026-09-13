@@ -2,16 +2,23 @@ package org.financialsystem.settlement.settlement.application
 
 import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
+import org.financialsystem.settlement.money.domain.PositiveAmount
+import org.financialsystem.settlement.settlement.application.dto.AcceptSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
+import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
+import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
+import org.financialsystem.settlement.settlement.exception.RecipientBankMismatchException
 import org.financialsystem.settlement.settlement.exception.SameBankSettlementException
+import org.financialsystem.settlement.settlement.exception.SettlementNotFoundException
 import org.financialsystem.settlement.settlement.exception.TransferKeyDuplicatedException
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -84,6 +91,63 @@ class SettlementService(
 
         return pendingSettlements.map {
             PendingSettlementResponse.from(it, sourceBankCodes.getValue(it.sourceBankId), recipientBankCode)
+        }
+    }
+
+    @Transactional
+    fun accept(
+        transferKey: String,
+        request: AcceptSettlementRequest,
+    ): SettlementResponse {
+        val settlement = findSettlement(transferKey)
+        val recipientBank = bankRepository.findByIdOrNull(settlement.recipientBankId)!!
+
+        validateRecipientBank(request.recipientBankCode, recipientBank.bankCode)
+
+        if (settlement.state == SettlementState.SETTLED || settlement.state == SettlementState.REJECTED) {
+            return SettlementResponse.from(settlement)
+        }
+
+        val sourceBank = bankRepository.findByIdOrNull(settlement.sourceBankId)!!
+        if (sourceBank.balance < settlement.amount) {
+            settlement.reject()
+        } else {
+            sourceBank.debit(PositiveAmount(settlement.amount))
+            recipientBank.credit(PositiveAmount(settlement.amount))
+            settlement.settle()
+        }
+
+        return SettlementResponse.from(settlement)
+    }
+
+    @Transactional
+    fun reject(
+        transferKey: String,
+        request: RejectSettlementRequest,
+    ): SettlementResponse {
+        val settlement = findSettlement(transferKey)
+        val recipientBank = bankRepository.findByIdOrNull(settlement.recipientBankId)!!
+
+        validateRecipientBank(request.recipientBankCode, recipientBank.bankCode)
+
+        if (settlement.state == SettlementState.SETTLED || settlement.state == SettlementState.REJECTED) {
+            return SettlementResponse.from(settlement)
+        }
+
+        settlement.reject()
+        return SettlementResponse.from(settlement)
+    }
+
+    private fun findSettlement(transferKey: String): Settlement =
+        settlementRepository.findByTransferKey(transferKey)
+            ?: throw SettlementNotFoundException("존재하지 않는 결제 정보입니다.")
+
+    private fun validateRecipientBank(
+        requestedBankCode: String,
+        recipientBankCode: String,
+    ) {
+        if (requestedBankCode != recipientBankCode) {
+            throw RecipientBankMismatchException("지정된 수취 은행만 결제를 승인하거나 거절할 수 있습니다.")
         }
     }
 }
