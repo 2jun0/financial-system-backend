@@ -6,10 +6,13 @@ import org.financialsystem.settlement.bank.domain.Bank
 import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
 import org.financialsystem.settlement.money.domain.PositiveAmount
+import org.financialsystem.settlement.settlement.application.dto.AcceptSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
+import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
+import org.financialsystem.settlement.settlement.exception.RecipientBankMismatchException
 import org.financialsystem.settlement.settlement.exception.TransferKeyDuplicatedException
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
 import org.junit.jupiter.api.BeforeEach
@@ -24,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.test.util.ReflectionTestUtils
+import java.util.Optional
 
 @ExtendWith(MockitoExtension::class)
 class SettlementServiceTest {
@@ -158,6 +162,120 @@ class SettlementServiceTest {
         assertThatThrownBy { settlementService.findPendingSettlements("BANK_A") }
             .isInstanceOf(BankNotFoundException::class.java)
         verifyNoInteractions(settlementRepository)
+    }
+
+    @Test
+    fun `결제를 승인하면 송금 은행에서 수취 은행으로 잔액이 이동하고 결제완료 상태가 된다`() {
+        bankA.credit(PositiveAmount(10_000L))
+        given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(transferKey = "transfer-key", amount = 1_000)
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = AcceptSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.accept(settlement.transferKey, request)
+
+        assertThat(bankA.balance).isEqualTo(9_000L)
+        assertThat(bankB.balance).isEqualTo(1_000L)
+        assertThat(settlement.state).isEqualTo(SettlementState.SETTLED)
+        assertThat(response.transferKey).isEqualTo(settlement.transferKey)
+        assertThat(response.state).isEqualTo(SettlementState.SETTLED)
+    }
+
+    @Test
+    fun `결제를 승인할 때 잔액이 부족한 경우 잔액을 이동하지 않고 결제거절 상태가 된다`() {
+        given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(transferKey = "transfer-key", amount = 1_000)
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = AcceptSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.accept(settlement.transferKey, request)
+
+        assertThat(bankA.balance).isEqualTo(0)
+        assertThat(bankB.balance).isEqualTo(0)
+        assertThat(settlement.state).isEqualTo(SettlementState.REJECTED)
+        assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+    }
+
+    @Test
+    fun `결제를 승인할 때 지정된 수취 은행이 아니면 예외를 던진다`() {
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(transferKey = "transfer-key", amount = 1_000)
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = AcceptSettlementRequest(bankC.bankCode)
+
+        assertThatThrownBy {
+            settlementService.accept(settlement.transferKey, request)
+        }.isInstanceOf(RecipientBankMismatchException::class.java)
+    }
+
+    @Test
+    fun `결제를 거절하면 잔액을 이동하지 않고 결제거절 상태가 된다`() {
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(transferKey = "transfer-key", amount = 1_000)
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = RejectSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.reject(settlement.transferKey, request)
+
+        assertThat(bankA.balance).isEqualTo(0)
+        assertThat(bankB.balance).isEqualTo(0)
+        assertThat(settlement.state).isEqualTo(SettlementState.REJECTED)
+        assertThat(response.transferKey).isEqualTo(settlement.transferKey)
+        assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+    }
+
+    @Test
+    fun `결제된 결제를 승인하면 결제 상태를 응답한다`() {
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(amount = 1_000).apply { this.settle() }
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = AcceptSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.accept(settlement.transferKey, request)
+
+        assertThat(response.transferKey).isEqualTo(settlement.transferKey)
+        assertThat(response.state).isEqualTo(SettlementState.SETTLED)
+    }
+
+    @Test
+    fun `거절된 결제를 승인하면 결제 상태를 응답한다`() {
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(amount = 1_000).apply { this.reject() }
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = AcceptSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.accept(settlement.transferKey, request)
+
+        assertThat(response.transferKey).isEqualTo(settlement.transferKey)
+        assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+    }
+
+    @Test
+    fun `결제된 결제를 거절하면 결제 상태를 응답한다`() {
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(amount = 1_000).apply { this.settle() }
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = RejectSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.reject(settlement.transferKey, request)
+
+        assertThat(response.transferKey).isEqualTo(settlement.transferKey)
+        assertThat(response.state).isEqualTo(SettlementState.SETTLED)
+    }
+
+    @Test
+    fun `거절된 결제를 거절하면 결제 상태를 응답한다`() {
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        val settlement = pendingSettlement(amount = 1_000).apply { this.reject() }
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        val request = RejectSettlementRequest(bankB.bankCode)
+
+        val response = settlementService.reject(settlement.transferKey, request)
+
+        assertThat(response.transferKey).isEqualTo(settlement.transferKey)
+        assertThat(response.state).isEqualTo(SettlementState.REJECTED)
     }
 
     private fun bank(
