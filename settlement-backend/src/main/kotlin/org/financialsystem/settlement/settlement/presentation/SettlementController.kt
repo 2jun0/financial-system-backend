@@ -7,7 +7,8 @@ import org.financialsystem.settlement.settlement.application.dto.InitiateSettlem
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
-import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
+import org.financialsystem.settlement.settlement.application.dto.SettlementDetailResponse
+import org.financialsystem.settlement.settlement.application.dto.SettlementStateResponse
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -38,12 +39,19 @@ class SettlementController(
     fun accept(
         @PathVariable transferKey: String,
         @Valid @RequestBody request: AcceptSettlementRequest,
-    ): SettlementResponse = settlementService.accept(transferKey, request)
+    ): SettlementStateResponse = settlementService.accept(transferKey, request)
 
     @PostMapping("/settlements/{transferKey}/reject")
     @ResponseStatus(HttpStatus.OK)
     fun reject(
         @PathVariable transferKey: String,
         @Valid @RequestBody request: RejectSettlementRequest,
-    ): SettlementResponse = settlementService.reject(transferKey, request)
+    ): SettlementStateResponse = settlementService.reject(transferKey, request)
+
+    @GetMapping("/settlements/{transferKey}")
+    @ResponseStatus(HttpStatus.OK)
+    fun find(
+        @PathVariable transferKey: String,
+        @RequestParam("sourceBankCode") sourceBankCode: String,
+    ): SettlementDetailResponse = settlementService.find(transferKey, sourceBankCode)
 }

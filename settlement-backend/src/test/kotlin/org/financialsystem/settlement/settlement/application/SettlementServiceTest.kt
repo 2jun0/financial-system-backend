@@ -10,14 +10,18 @@ import org.financialsystem.settlement.settlement.application.dto.AcceptSettlemen
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
+import org.financialsystem.settlement.settlement.application.dto.SettlementDetailResponse
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.financialsystem.settlement.settlement.exception.RecipientBankMismatchException
+import org.financialsystem.settlement.settlement.exception.SourceBankMismatchException
 import org.financialsystem.settlement.settlement.exception.TransferKeyDuplicatedException
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import org.mockito.ArgumentCaptor
 import org.mockito.BDDMockito.given
 import org.mockito.Mock
@@ -276,6 +280,46 @@ class SettlementServiceTest {
 
         assertThat(response.transferKey).isEqualTo(settlement.transferKey)
         assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+    }
+
+    @ParameterizedTest
+    @EnumSource(SettlementState::class)
+    fun `결제를 조회하면 현재 상태를 포함한 상세 정보를 응답한다`(state: SettlementState) {
+        val settlement = pendingSettlement(amount = 1_000, transferKey = "transfer-key")
+        when (state) {
+            SettlementState.RECIPIENT_VALIDATION_PENDING -> Unit
+            SettlementState.SETTLED -> settlement.settle()
+            SettlementState.REJECTED -> settlement.reject()
+        }
+
+        given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
+        given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+
+        val response = settlementService.find(settlement.transferKey, bankA.bankCode)
+
+        assertThat(response).isEqualTo(
+            SettlementDetailResponse(
+                transferKey = settlement.transferKey,
+                sourceBankCode = bankA.bankCode,
+                sourceAccountNumber = settlement.sourceAccountNumber,
+                recipientBankCode = bankB.bankCode,
+                recipientAccountNumber = settlement.recipientAccountNumber,
+                amount = settlement.amount,
+                state = state,
+            ),
+        )
+    }
+
+    @Test
+    fun `결제를 조회할 때 지정된 송금 은행이 아니면 예외를 던진다`() {
+        val settlement = pendingSettlement(amount = 1_000, transferKey = "transfer-key")
+        given(settlementRepository.findByTransferKey(settlement.transferKey)).willReturn(settlement)
+        given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
+
+        assertThatThrownBy {
+            settlementService.find(settlement.transferKey, bankC.bankCode)
+        }.isInstanceOf(SourceBankMismatchException::class.java)
     }
 
     private fun bank(

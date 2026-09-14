@@ -8,12 +8,14 @@ import org.financialsystem.settlement.settlement.application.dto.InitiateSettlem
 import org.financialsystem.settlement.settlement.application.dto.InitiateSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.RejectSettlementRequest
-import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
+import org.financialsystem.settlement.settlement.application.dto.SettlementDetailResponse
+import org.financialsystem.settlement.settlement.application.dto.SettlementStateResponse
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.financialsystem.settlement.settlement.exception.RecipientBankMismatchException
 import org.financialsystem.settlement.settlement.exception.SameBankSettlementException
 import org.financialsystem.settlement.settlement.exception.SettlementNotFoundException
+import org.financialsystem.settlement.settlement.exception.SourceBankMismatchException
 import org.financialsystem.settlement.settlement.exception.TransferKeyDuplicatedException
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
 import org.springframework.data.domain.PageRequest
@@ -98,14 +100,14 @@ class SettlementService(
     fun accept(
         transferKey: String,
         request: AcceptSettlementRequest,
-    ): SettlementResponse {
+    ): SettlementStateResponse {
         val settlement = findSettlement(transferKey)
         val recipientBank = bankRepository.findByIdOrNull(settlement.recipientBankId)!!
 
         validateRecipientBank(request.recipientBankCode, recipientBank.bankCode)
 
         if (settlement.state == SettlementState.SETTLED || settlement.state == SettlementState.REJECTED) {
-            return SettlementResponse.from(settlement)
+            return SettlementStateResponse.from(settlement)
         }
 
         val sourceBank = bankRepository.findByIdOrNull(settlement.sourceBankId)!!
@@ -117,25 +119,39 @@ class SettlementService(
             settlement.settle()
         }
 
-        return SettlementResponse.from(settlement)
+        return SettlementStateResponse.from(settlement)
     }
 
     @Transactional
     fun reject(
         transferKey: String,
         request: RejectSettlementRequest,
-    ): SettlementResponse {
+    ): SettlementStateResponse {
         val settlement = findSettlement(transferKey)
         val recipientBank = bankRepository.findByIdOrNull(settlement.recipientBankId)!!
 
         validateRecipientBank(request.recipientBankCode, recipientBank.bankCode)
 
         if (settlement.state == SettlementState.SETTLED || settlement.state == SettlementState.REJECTED) {
-            return SettlementResponse.from(settlement)
+            return SettlementStateResponse.from(settlement)
         }
 
         settlement.reject()
-        return SettlementResponse.from(settlement)
+        return SettlementStateResponse.from(settlement)
+    }
+
+    @Transactional(readOnly = true)
+    fun find(
+        transferKey: String,
+        sourceBankCode: String,
+    ): SettlementDetailResponse {
+        val settlement = findSettlement(transferKey)
+        val sourceBank = bankRepository.findByIdOrNull(settlement.sourceBankId)!!
+
+        validateSourceBank(sourceBankCode, sourceBank.bankCode)
+
+        val recipientBank = bankRepository.findByIdOrNull(settlement.recipientBankId)!!
+        return SettlementDetailResponse.from(settlement, sourceBank.bankCode, recipientBank.bankCode)
     }
 
     private fun findSettlement(transferKey: String): Settlement =
@@ -148,6 +164,15 @@ class SettlementService(
     ) {
         if (requestedBankCode != recipientBankCode) {
             throw RecipientBankMismatchException("지정된 수취 은행만 결제를 승인하거나 거절할 수 있습니다.")
+        }
+    }
+
+    private fun validateSourceBank(
+        requestedBankCode: String,
+        sourceBankCode: String,
+    ) {
+        if (requestedBankCode != sourceBankCode) {
+            throw SourceBankMismatchException("지정된 송금 은행만 결제를 조회할 수 있습니다.")
         }
     }
 }
