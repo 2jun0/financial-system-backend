@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/account/{accountId}")
+@RequestMapping("/account/{accountNumber}")
 class TransferController(
     val transferService: TransferService,
 ) {
@@ -23,10 +23,10 @@ class TransferController(
     @ResponseStatus(HttpStatus.OK)
     fun transfer(
         @AuthenticationPrincipal principal: CustomerPrincipal,
-        @PathVariable accountId: Long,
+        @PathVariable accountNumber: String,
         @Valid @RequestBody transferRequest: TransferRequest,
     ): TransferResponse {
-        val transfer = transferService.initiateTransfer(principal.customerId, accountId, transferRequest)
+        val transfer = transferService.initiateTransfer(principal.customerId, accountNumber, transferRequest)
         return TransferResponse(transfer.transferKey)
     }
 }
