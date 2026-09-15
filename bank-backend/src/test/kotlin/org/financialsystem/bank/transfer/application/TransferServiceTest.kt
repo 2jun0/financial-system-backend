@@ -3,9 +3,12 @@ package org.financialsystem.bank.transfer.application
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.financialsystem.bank.money.domain.PositiveAmount
+import org.financialsystem.bank.transfer.application.dto.InitiateSettlementRequest
 import org.financialsystem.bank.transfer.application.dto.TransferRequest
 import org.financialsystem.bank.transfer.application.exception.SameBankTransferNotSupportException
+import org.financialsystem.bank.transfer.application.exception.SettlementClientException
 import org.financialsystem.bank.transfer.domain.Transfer
+import org.financialsystem.bank.transfer.domain.TransferState
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.BDDMockito.given
@@ -19,6 +22,7 @@ class TransferServiceTest {
     @Mock
     lateinit var transferInitiationService: TransferInitiationService
 
+    private val settlementClient = FakeSettlementClient()
 
     private val sourceAccountNumber = "001-source-account"
     private val fakeTransferKeyGenerator = FakeTransferKeyGenerator()
@@ -42,6 +46,7 @@ class TransferServiceTest {
             TransferService(
                 fakeTransferKeyGenerator,
                 transferInitiationService,
+                settlementClient,
                 bankCode,
             )
     }
@@ -73,6 +78,70 @@ class TransferServiceTest {
             )
 
         assertThat(transfer).isSameAs(expectedTransfer)
+        assertThat(settlementClient.requests).containsExactly(
+            InitiateSettlementRequest(
+                transferKey = expectedTransfer.transferKey,
+                sourceBankCode = bankCode,
+                sourceAccountNumber = sourceAccountNumber,
+                recipientBankCode = recipientBankCode,
+                recipientAccountNumber = recipientAccountNumber,
+                amount = amount,
+            ),
+        )
+    }
+
+    @Test
+    fun `중앙 결제 통신이 실패해도 기존 송금 키와 송금중 상태를 반환한다`() {
+        val expectedTransfer =
+            Transfer.initiate(
+                fakeTransferKeyGenerator.generate(),
+                sourceAccountId,
+                recipientBankCode,
+                recipientAccountNumber,
+                amount,
+            )
+        given(
+            transferInitiationService.initiateTransfer(
+                expectedTransfer.transferKey,
+                customerId,
+                sourceAccountNumber,
+                transferRequest,
+            ),
+        ).willReturn(expectedTransfer)
+        settlementClient.failWith(
+            SettlementClientException("중앙 결제 서버에 연결할 수 없습니다.", RuntimeException("응답 시간 초과")),
+        )
+
+        val transfer = transferService.initiateTransfer(customerId, sourceAccountNumber, transferRequest)
+
+        assertThat(transfer).isSameAs(expectedTransfer)
+        assertThat(transfer.transferKey).isEqualTo(expectedTransfer.transferKey)
+        assertThat(transfer.state).isEqualTo(TransferState.TRANSFERRING)
+    }
+
+    @Test
+    fun `중앙 결제 요청 중 통신 실패가 아닌 예외는 그대로 전파한다`() {
+        val expectedTransfer =
+            Transfer.initiate(
+                fakeTransferKeyGenerator.generate(),
+                sourceAccountId,
+                recipientBankCode,
+                recipientAccountNumber,
+                amount,
+            )
+        given(
+            transferInitiationService.initiateTransfer(
+                expectedTransfer.transferKey,
+                customerId,
+                sourceAccountNumber,
+                transferRequest,
+            ),
+        ).willReturn(expectedTransfer)
+        settlementClient.failWith(IllegalStateException("요청 직렬화 실패"))
+
+        assertThatThrownBy {
+            transferService.initiateTransfer(customerId, sourceAccountNumber, transferRequest)
+        }.isInstanceOf(IllegalStateException::class.java)
     }
 
     @Test
@@ -86,9 +155,24 @@ class TransferServiceTest {
         }.isInstanceOf(SameBankTransferNotSupportException::class.java)
 
         verifyNoInteractions(transferInitiationService)
+        assertThat(settlementClient.requests).isEmpty()
     }
 }
 
 class FakeTransferKeyGenerator : TransferKeyGenerator {
     override fun generate(): String = "transfer_key"
+}
+
+class FakeSettlementClient : SettlementClient {
+    val requests = mutableListOf<InitiateSettlementRequest>()
+    private var failure: RuntimeException? = null
+
+    fun failWith(exception: RuntimeException) {
+        failure = exception
+    }
+
+    override fun initiate(request: InitiateSettlementRequest) {
+        requests += request
+        failure?.let { throw it }
+    }
 }
