@@ -35,7 +35,7 @@ class TransferControllerTest {
 
         mockMvc
             .perform(
-                post("/account/10/transfer")
+                post("/account/001-source-account/transfer")
                     .with(user(principal))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
@@ -56,6 +56,7 @@ class TransferControllerTest {
     fun `송금 결과로 OK, 송금key를 응답한다`() {
         val principal = CustomerPrincipal(1L, "loginId", "passwordHash")
         val accountId = 10L
+        val accountNumber = "001-source-account"
         val transferRequest =
             TransferRequest(
                 "BANK_B",
@@ -70,12 +71,12 @@ class TransferControllerTest {
                 transferRequest.recipientAccountNumber,
                 transferRequest.amount,
             )
-        given(transferService.initiateTransfer(principal.customerId, accountId, transferRequest))
+        given(transferService.initiateTransfer(principal.customerId, accountNumber, transferRequest))
             .willReturn(transfer)
 
         mockMvc
             .perform(
-                post("/account/$accountId/transfer")
+                post("/account/$accountNumber/transfer")
                     .with(user(principal))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
