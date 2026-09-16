@@ -14,7 +14,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.BDDMockito.given
 import org.mockito.Mock
+import org.mockito.Mockito.doThrow
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
+import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.junit.jupiter.MockitoExtension
 import kotlin.test.Test
 
@@ -23,7 +26,8 @@ class TransferServiceTest {
     @Mock
     lateinit var transferInitiationService: TransferInitiationService
 
-    private val settlementClient = FakeSettlementClient()
+    @Mock
+    lateinit var settlementClient: SettlementClient
 
     private val sourceAccountNumber = "001-source-account"
     private val fakeTransferKeyGenerator = FakeTransferKeyGenerator()
@@ -35,6 +39,15 @@ class TransferServiceTest {
     private val amount = PositiveAmount(10_000L)
     private val transferRequest =
         TransferRequest(
+            recipientBankCode = recipientBankCode,
+            recipientAccountNumber = recipientAccountNumber,
+            amount = amount,
+        )
+    private val settlementRequest =
+        InitiateSettlementRequest(
+            transferKey = fakeTransferKeyGenerator.generate(),
+            sourceBankCode = bankCode,
+            sourceAccountNumber = sourceAccountNumber,
             recipientBankCode = recipientBankCode,
             recipientAccountNumber = recipientAccountNumber,
             amount = amount,
@@ -79,16 +92,8 @@ class TransferServiceTest {
             )
 
         assertThat(transfer).isSameAs(expectedTransfer)
-        assertThat(settlementClient.requests).containsExactly(
-            InitiateSettlementRequest(
-                transferKey = expectedTransfer.transferKey,
-                sourceBankCode = bankCode,
-                sourceAccountNumber = sourceAccountNumber,
-                recipientBankCode = recipientBankCode,
-                recipientAccountNumber = recipientAccountNumber,
-                amount = amount,
-            ),
-        )
+        verify(settlementClient).initiate(settlementRequest)
+        verifyNoMoreInteractions(settlementClient)
     }
 
     @Test
@@ -109,9 +114,9 @@ class TransferServiceTest {
                 transferRequest,
             ),
         ).willReturn(expectedTransfer)
-        settlementClient.failWith(
+        doThrow(
             SettlementClientException("중앙 결제 서버에 연결할 수 없습니다.", RuntimeException("응답 시간 초과")),
-        )
+        ).`when`(settlementClient).initiate(settlementRequest)
 
         val transfer = transferService.initiateTransfer(customerId, sourceAccountNumber, transferRequest)
 
@@ -138,7 +143,7 @@ class TransferServiceTest {
                 transferRequest,
             ),
         ).willReturn(expectedTransfer)
-        settlementClient.failWith(IllegalStateException("요청 직렬화 실패"))
+        doThrow(IllegalStateException("요청 직렬화 실패")).`when`(settlementClient).initiate(settlementRequest)
 
         assertThatThrownBy {
             transferService.initiateTransfer(customerId, sourceAccountNumber, transferRequest)
@@ -155,25 +160,10 @@ class TransferServiceTest {
             )
         }.isInstanceOf(SameBankTransferNotSupportException::class.java)
 
-        verifyNoInteractions(transferInitiationService)
-        assertThat(settlementClient.requests).isEmpty()
+        verifyNoInteractions(transferInitiationService, settlementClient)
     }
 }
 
 class FakeTransferKeyGenerator : TransferKeyGenerator {
     override fun generate(): String = "transfer_key"
-}
-
-class FakeSettlementClient : SettlementClient {
-    val requests = mutableListOf<InitiateSettlementRequest>()
-    private var failure: RuntimeException? = null
-
-    fun failWith(exception: RuntimeException) {
-        failure = exception
-    }
-
-    override fun initiate(request: InitiateSettlementRequest) {
-        requests += request
-        failure?.let { throw it }
-    }
 }
