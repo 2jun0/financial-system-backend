@@ -1,4 +1,4 @@
-package org.financialsystem.bank.transfer.application.exception
+package org.financialsystem.bank.settlement.application.exception
 
 class SettlementClientException(
     message: String,

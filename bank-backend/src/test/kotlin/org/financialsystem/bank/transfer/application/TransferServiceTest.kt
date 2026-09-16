@@ -3,10 +3,11 @@ package org.financialsystem.bank.transfer.application
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.financialsystem.bank.money.domain.PositiveAmount
-import org.financialsystem.bank.transfer.application.dto.InitiateSettlementRequest
+import org.financialsystem.bank.settlement.application.SettlementClient
+import org.financialsystem.bank.settlement.application.dto.InitiateSettlementRequest
+import org.financialsystem.bank.settlement.application.exception.SettlementClientException
 import org.financialsystem.bank.transfer.application.dto.TransferRequest
 import org.financialsystem.bank.transfer.application.exception.SameBankTransferNotSupportException
-import org.financialsystem.bank.transfer.application.exception.SettlementClientException
 import org.financialsystem.bank.transfer.domain.Transfer
 import org.financialsystem.bank.transfer.domain.TransferState
 import org.junit.jupiter.api.BeforeEach

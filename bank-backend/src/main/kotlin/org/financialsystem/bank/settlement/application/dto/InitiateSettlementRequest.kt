@@ -1,4 +1,4 @@
-package org.financialsystem.bank.transfer.application.dto
+package org.financialsystem.bank.settlement.application.dto
 
 import org.financialsystem.bank.money.domain.PositiveAmount
 

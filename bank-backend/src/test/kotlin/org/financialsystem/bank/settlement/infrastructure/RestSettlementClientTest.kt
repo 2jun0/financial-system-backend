@@ -1,10 +1,10 @@
-package org.financialsystem.bank.transfer.infrastructure
+package org.financialsystem.bank.settlement.infrastructure
 
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.financialsystem.bank.money.domain.PositiveAmount
-import org.financialsystem.bank.transfer.application.dto.InitiateSettlementRequest
-import org.financialsystem.bank.transfer.application.exception.SettlementClientException
+import org.financialsystem.bank.settlement.application.dto.InitiateSettlementRequest
+import org.financialsystem.bank.settlement.application.exception.SettlementClientException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
