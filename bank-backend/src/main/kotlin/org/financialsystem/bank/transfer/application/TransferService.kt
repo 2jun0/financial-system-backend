@@ -1,9 +1,10 @@
 package org.financialsystem.bank.transfer.application
 
-import org.financialsystem.bank.transfer.application.dto.InitiateSettlementRequest
+import org.financialsystem.bank.settlement.application.SettlementClient
+import org.financialsystem.bank.settlement.application.dto.InitiateSettlementRequest
+import org.financialsystem.bank.settlement.application.exception.SettlementClientException
 import org.financialsystem.bank.transfer.application.dto.TransferRequest
 import org.financialsystem.bank.transfer.application.exception.SameBankTransferNotSupportException
-import org.financialsystem.bank.transfer.application.exception.SettlementClientException
 import org.financialsystem.bank.transfer.domain.Transfer
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
