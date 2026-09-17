@@ -13,5 +13,6 @@ class SettlementPollingScheduler(
     )
     fun poll() {
         recipientSettlementService.decidePendingSettlements()
+        recipientSettlementService.updateReceivingReceipts()
     }
 }

@@ -4,6 +4,7 @@ import org.financialsystem.bank.settlement.application.dto.AcceptSettlementReque
 import org.financialsystem.bank.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.bank.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.bank.settlement.application.dto.RejectSettlementRequest
+import org.financialsystem.bank.settlement.application.dto.SettlementDetailResponse
 import org.financialsystem.bank.settlement.application.dto.SettlementStateResponse
 
 interface SettlementClient {
@@ -20,4 +21,6 @@ interface SettlementClient {
         transferKey: String,
         request: AcceptSettlementRequest,
     ): SettlementStateResponse
+
+    fun find(transferKey: String): SettlementDetailResponse
 }

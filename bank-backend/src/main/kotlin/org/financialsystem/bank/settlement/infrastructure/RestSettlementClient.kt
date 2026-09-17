@@ -5,6 +5,7 @@ import org.financialsystem.bank.settlement.application.dto.AcceptSettlementReque
 import org.financialsystem.bank.settlement.application.dto.InitiateSettlementRequest
 import org.financialsystem.bank.settlement.application.dto.PendingSettlementResponse
 import org.financialsystem.bank.settlement.application.dto.RejectSettlementRequest
+import org.financialsystem.bank.settlement.application.dto.SettlementDetailResponse
 import org.financialsystem.bank.settlement.application.dto.SettlementStateResponse
 import org.financialsystem.bank.settlement.application.exception.SettlementClientException
 import org.springframework.beans.factory.annotation.Value
@@ -94,6 +95,22 @@ class RestSettlementClient(
                 .body(request)
                 .retrieve()
                 .body<SettlementStateResponse>() ?: error("중앙 결제 승인 응답 본문이 없습니다.")
+        } catch (exception: ResourceAccessException) {
+            throw SettlementClientException("중앙 결제 서버에 연결할 수 없습니다.", exception)
+        } catch (exception: HttpClientErrorException) {
+            throw SettlementClientException("중앙 결제 서버가 요청을 거절했습니다. status=${exception.statusCode}", exception)
+        } catch (exception: HttpServerErrorException) {
+            throw SettlementClientException("중앙 결제 서버 오류입니다. status=${exception.statusCode}", exception)
+        }
+    }
+
+    override fun find(transferKey: String): SettlementDetailResponse {
+        try {
+            return restClient
+                .get()
+                .uri("/settlements/$transferKey")
+                .retrieve()
+                .body<SettlementDetailResponse>() ?: error("중앙 결제 상세 응답 본문이 없습니다.")
         } catch (exception: ResourceAccessException) {
             throw SettlementClientException("중앙 결제 서버에 연결할 수 없습니다.", exception)
         } catch (exception: HttpClientErrorException) {
