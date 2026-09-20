@@ -16,6 +16,8 @@ class SecurityConfig {
             authorizeHttpRequests {
                 authorize(HttpMethod.POST, "/auth/login", permitAll)
                 authorize(HttpMethod.POST, "/auth/register", permitAll)
+                authorize(HttpMethod.POST, "/settlement-results/**", permitAll)
+                authorize(HttpMethod.POST, "/settlement-validations/**", permitAll)
                 authorize(anyRequest, authenticated)
             }
         }
