@@ -53,7 +53,7 @@
 - 중앙 결제거절에 따른 출금 반환은 `COMPENSATION`으로 기록한다.
 - 계좌 거래 기록은 송금의 최종 완료 시점이 아니라 해당 계좌의 잔액이 실제로 변경되는 시점에 생성한다.
 - 송금을 시작하며 선출금하면 송금 상태가 `송금중`이어도 출금 기록을 즉시 생성한다.
-- 결제거절로 출금액을 반환하면 별도의 보상 기록을 생성한다.
+- 결제거절 또는 만료 후 중앙의 권위 있는 `기록 없음`을 근거로 출금액을 반환하면 별도의 보상 기록을 생성한다.
 - 수취 은행은 완료된 중앙 결제를 고객 계좌에 실제 반영할 때 입금 기록을 생성한다.
 - 잔액 변경과 그 근거가 되는 계좌 거래 기록 생성은 하나의 로컬 DB 트랜잭션으로 처리한다.
 - 거래 기록은 잔액 변경의 근거이므로 생성 후 수정하거나 삭제하지 않는다.
@@ -72,7 +72,7 @@
 | `recipient_account_number` | 수취 계좌번호 | 필수 |
 | `amount` | 송금 요청 금액 | 0보다 큰 정수 |
 | `state` | 송금 진행 상태 | `송금중`, `성공`, `실패` 중 하나 |
-| `created_at` | 송금 생성 시각 | 필수, 생성 후 변경 금지 |
+| `created_at` | 송금 생성 시각이자 최초 결제 요청의 기준 시각 | 필수, 생성 후 변경 금지 |
 | `updated_at` | 송금 상태가 마지막으로 변경된 시각 | 필수 |
 
 ### 송금 식별자 제약
@@ -80,8 +80,36 @@
 - `Transfer.id`는 송금 은행 DB 내부의 auto increment PK다.
 - `Transfer.transfer_key`는 송금 은행과 중앙 결제 시스템 사이에서 같은 송금을 식별하는 업무 키다.
 - 중앙 결제 요청을 재시도해도 `transfer_key`를 변경하지 않는다.
+- 중앙 결제 요청의 `requested_at`에는 `Transfer.created_at`을 사용하고 재전송에서도 변경하지 않는다.
 - 계좌 거래 기록의 `AccountTransaction.transfer_key`도 같은 값을 사용한다.
 - 고객이 송금 은행에 보내는 요청의 별도 `idempotency_key`는 현재 모델에 포함하지 않는다.
+
+## Receipt
+
+수취 은행이 중앙 결제 시스템의 검증 요청에 수취 가능을 응답한 결제의 수취 진행 상태를 관리한다. 수취 계좌가 없어 수취 불가를 응답한 요청은 `Receipt`를 생성하지 않는다.
+
+| 속성 | 의미 | 확정된 제약 |
+|---|---|---|
+| `id` | 수취 은행 DB 내부의 수취 기록 식별자 | auto increment PK |
+| `transfer_key` | 송금 은행, 중앙 결제 시스템, 수취 은행이 공유하는 송금 키 | 고유, 필수, 변경 금지 |
+| `recipient_account_id` | 입금할 수취 고객 계좌의 내부 식별자 | 필수, `Account.id` 참조 |
+| `source_bank_code` | 송금 은행 식별자 | 필수 |
+| `source_account_number` | 송금 고객 계좌번호 | 필수, 참조 정보 |
+| `amount` | 수취 금액 | 0보다 큰 정수 |
+| `state` | 수취 진행 상태 | `RECEIVING`, `SUCCEEDED`, `FAILED` 중 하나 |
+| `created_at` | 수취 기록 생성 시각 | 필수, 생성 후 변경 금지 |
+| `updated_at` | 수취 상태가 마지막으로 변경된 시각 | 필수 |
+
+### 수취 상태 규칙
+
+- 도메인 문서의 `수취대기`, `성공`, `실패`는 각각 `RECEIVING`, `SUCCEEDED`, `FAILED`로 저장한다.
+- 최초 상태는 `RECEIVING`이며, 검증 요청에 수취 가능을 응답하기 전에 저장한다.
+- 결제 결과 통지 또는 확인 조회로 중앙 결제완료를 확인하고 수취 고객 계좌 입금과 `CREDIT` 기록 생성을 마치면 `SUCCEEDED`로 변경한다. `SUCCEEDED` 변경, 잔액 증가, `CREDIT` 생성은 하나의 로컬 DB 트랜잭션으로 처리한다.
+- 결제 결과 통지 또는 확인 조회로 중앙 결제거절을 확인하면 입금 없이 `FAILED`로 변경한다.
+- `REJECTED` 결과 통지를 받았을 때 같은 `transfer_key`의 수취 기록이 없으면 새 수취 기록을 생성하지 않는다.
+- `SUCCEEDED`와 `FAILED`는 최종 상태다.
+- 동일한 `transfer_key`로 둘 이상의 수취 기록을 생성하지 않는다. 중앙 결제 시스템은 검증을 의도적으로 재요청하지 않지만, 통신 계층에서 같은 검증 요청이 중복 도착하면 기존 기록으로 같은 응답을 한다.
+- `RECEIVING` 기록만 확인 조회 대상이다.
 
 ## Bank
 
@@ -115,6 +143,7 @@
 | `recipient_bank_id` | 수취 은행의 중앙 결제 내부 식별자 | 필수, `Bank.id` 참조 |
 | `recipient_account_number` | 수취 고객 계좌번호 | 필수, 참조 정보 |
 | `amount` | 중앙 결제 금액 | 0보다 큰 정수 |
+| `requested_at` | 송금 은행이 정한 최초 결제 요청 시각 | 필수, 재전송 시 유지, 변경 금지 |
 | `state` | 중앙 결제의 진행 상태와 최종 결과 | `RECIPIENT_VALIDATION_PENDING`, `SETTLED`, `REJECTED` 중 하나 |
 | `created_at` | 중앙 결제 거래 생성 시각 | 필수, 생성 후 변경 금지 |
 | `updated_at` | 중앙 결제 상태가 마지막으로 변경된 시각 | 필수 |
@@ -122,12 +151,20 @@
 ### 상태 규칙
 
 - 도메인 문서의 `수취검증대기`, `결제완료`, `결제거절`은 각각 `RECIPIENT_VALIDATION_PENDING`, `SETTLED`, `REJECTED`로 저장한다.
-- 최초 상태는 `RECIPIENT_VALIDATION_PENDING`이다.
-- 수취 은행이 수취 가능을 확인하면 `SETTLED`로 변경한다.
+- 만료 전에 처음 접수한 결제 요청은 `RECIPIENT_VALIDATION_PENDING`으로 생성한다. 처음 접수했을 때 이미 만료된 요청은 `REJECTED`로 생성한다.
+- 수취 은행이 수취 가능을 확인하고, 결제 시간이 만료되지 않았으며 송금 은행의 결제잔액이 충분하면 `SETTLED`로 변경한다.
 - 수취 은행이 수취 불가를 확인하면 `REJECTED`로 변경한다.
+- 수취 검증 요청이 timeout, 연결 실패, HTTP 오류 또는 해석할 수 없는 응답으로 끝나거나 제한 시간 안에 수취 가능 응답을 확인하지 못하면 `REJECTED`로 변경한다. 이는 수취 은행의 명시적 거절이 아니라 중앙 결제 시스템의 정책적 거절이다.
+- 실패한 수취 검증 요청은 재시도하지 않는다. 수취 검증 제한 시간은 `created_at`부터 계산하며 구체적인 시간 값은 아직 결정하지 않았다. 전체 결제 만료 시간은 `requested_at`을 기준으로 계산하므로 두 시간 제한은 역할이 다르다.
+- `RECIPIENT_VALIDATION_PENDING`이 결제 만료 시간을 넘기면 `REJECTED`로 변경한다.
+- 만료 처리가 지연되어 상태가 아직 `RECIPIENT_VALIDATION_PENDING`이어도, 만료된 결제를 `SETTLED`로 변경해서는 안 된다.
+- 송금 은행의 결제잔액이 부족하면 `REJECTED`로 변경한다.
+- 송금 은행은 같은 결제를 다시 요청할 때 `transfer_key`, `requested_at`과 거래 내용을 모두 유지한다. 기존 기록은 변경하지 않으며, 내용이 같은 경우에만 현재 상태를 반환하고 다른 경우에는 내용 충돌로 거절한다.
+- `RECIPIENT_VALIDATION_PENDING`에서 최종 상태로의 변경은 현재 상태가 `RECIPIENT_VALIDATION_PENDING`인 행에만 적용한다. 이미 최종 상태이면 변경하지 않고 현재 상태를 응답한다.
+- 수취 가능 응답으로 `SETTLED`로 변경할 때는 현재 상태가 `RECIPIENT_VALIDATION_PENDING`이고 수취 검증 제한 시간이 지나지 않았는지 함께 확인한다. 이미 확정된 상태는 중복된 처리 결과로 덮어쓰지 않는다.
 - `SETTLED`와 `REJECTED`는 서로 되돌리거나 다른 최종 상태로 변경할 수 없는 최종 상태다.
 - `SETTLED`는 두 은행의 결제잔액 이동이 완료됐다는 의미이며 수취 고객 계좌 입금 완료를 의미하지 않는다.
-- `SETTLED` 전이, 송금 은행 `Bank.balance` 차감과 수취 은행 `Bank.balance` 증가는 하나의 중앙 DB 트랜잭션으로 처리한다.
+- `SETTLED` 변경, 송금 은행 `Bank.balance` 차감과 수취 은행 `Bank.balance` 증가는 하나의 중앙 DB 트랜잭션으로 처리한다. 결제잔액 이동은 `SETTLED` 변경이 실제로 이루어진 경우에만 수행한다.
 - `REJECTED`로 확정할 때는 두 은행의 결제잔액을 변경하지 않는다.
 - 동일한 `transfer_key`로 둘 이상의 중앙 결제 거래를 생성하지 않는다.
 - `source_bank_id`와 `recipient_bank_id`는 서로 달라야 한다.
@@ -150,6 +187,7 @@
 - `Transfer`는 송금 요청의 진행 상태를, `AccountTransaction`은 계좌에 실제 반영된 잔액 변화를 표현한다.
 - 하나의 `Transfer`는 동일한 `transfer_key`로 여러 `AccountTransaction`과 연결될 수 있다.
 - `Settlement`는 송금 은행과 수취 은행을 각각 `Bank`로 참조한다.
+- 은행 간 송금의 `Receipt`는 `Settlement`와 같은 `transfer_key`를 가진다. 은행 간 수취의 `CREDIT` 기록은 `Receipt`와 중앙 결제완료를 근거로 생성한다. 시연용 내부 이체에는 `Receipt`를 생성하지 않는다.
 - 시연용 고객과 시연용 계좌도 동일한 `Customer`, `Account` 모델을 사용하며 별도 계좌 유형을 두지 않는다.
 
 ## 계좌번호 규칙
