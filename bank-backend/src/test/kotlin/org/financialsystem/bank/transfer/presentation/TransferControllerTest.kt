@@ -6,6 +6,7 @@ import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.transfer.application.TransferService
 import org.financialsystem.bank.transfer.application.dto.TransferRequest
 import org.financialsystem.bank.transfer.domain.Transfer
+import org.financialsystem.bank.transfer.presentation.dto.TransferResponse
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
 import org.mockito.Mockito.verifyNoInteractions
@@ -71,8 +72,8 @@ class TransferControllerTest {
                 transferRequest.recipientAccountNumber,
                 transferRequest.amount,
             )
-        given(transferService.initiateTransfer(principal.customerId, accountNumber, transferRequest))
-            .willReturn(transfer)
+        given(transferService.transfer(principal.customerId, accountNumber, transferRequest))
+            .willReturn(TransferResponse.from(transfer))
 
         mockMvc
             .perform(

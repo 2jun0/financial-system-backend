@@ -1,14 +1,16 @@
 package org.financialsystem.bank.settlement.infrastructure
 
-import org.assertj.core.api.Assertions.assertThatCode
+import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.financialsystem.bank.money.domain.PositiveAmount
-import org.financialsystem.bank.settlement.application.dto.InitiateSettlementRequest
+import org.financialsystem.bank.settlement.application.dto.SettlementRequest
+import org.financialsystem.bank.settlement.application.dto.SettlementState
 import org.financialsystem.bank.settlement.application.exception.SettlementClientException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.web.client.match.MockRestRequestMatchers.method
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
@@ -24,7 +26,7 @@ import java.io.IOException
 class RestSettlementClientTest {
     private val baseUrl = "http://settlement.test"
     private val request =
-        InitiateSettlementRequest(
+        SettlementRequest(
             transferKey = "transfer_key",
             sourceBankCode = "BANK_A",
             sourceAccountNumber = "001-source-account",
@@ -43,14 +45,32 @@ class RestSettlementClientTest {
     }
 
     @Test
-    fun `중앙 결제 요청이 성공하면 예외 없이 끝난다`() {
+    fun `결제 요청이 성공하면 결제 결과를 반환한다`() {
         server
             .expect(requestTo("$baseUrl/settlements"))
             .andExpect(method(HttpMethod.POST))
+            .andRespond(
+                withSuccess(
+                    """{"transferKey":"transfer_key","state":"SETTLED"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val response = settlementClient.requestSettlement(request)
+
+        assertThat(response.transferKey).isEqualTo("transfer_key")
+        assertThat(response.state).isEqualTo(SettlementState.SETTLED)
+        server.verify()
+    }
+
+    @Test
+    fun `성공 응답에 본문이 없으면 결제 요청 실패 예외로 변환한다`() {
+        server
+            .expect(requestTo("$baseUrl/settlements"))
             .andRespond(withSuccess())
 
-        assertThatCode { settlementClient.initiate(request) }.doesNotThrowAnyException()
-        server.verify()
+        assertThatThrownBy { settlementClient.requestSettlement(request) }
+            .isInstanceOf(SettlementClientException::class.java)
     }
 
     @Test
@@ -59,7 +79,7 @@ class RestSettlementClientTest {
             .expect(requestTo("$baseUrl/settlements"))
             .andRespond(withException(IOException("connection refused")))
 
-        assertThatThrownBy { settlementClient.initiate(request) }
+        assertThatThrownBy { settlementClient.requestSettlement(request) }
             .isInstanceOf(SettlementClientException::class.java)
             .hasCauseInstanceOf(ResourceAccessException::class.java)
     }
@@ -70,7 +90,7 @@ class RestSettlementClientTest {
             .expect(requestTo("$baseUrl/settlements"))
             .andRespond(withStatus(HttpStatus.CONFLICT))
 
-        assertThatThrownBy { settlementClient.initiate(request) }
+        assertThatThrownBy { settlementClient.requestSettlement(request) }
             .isInstanceOf(SettlementClientException::class.java)
             .hasCauseInstanceOf(HttpClientErrorException::class.java)
     }
@@ -81,7 +101,7 @@ class RestSettlementClientTest {
             .expect(requestTo("$baseUrl/settlements"))
             .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR))
 
-        assertThatThrownBy { settlementClient.initiate(request) }
+        assertThatThrownBy { settlementClient.requestSettlement(request) }
             .isInstanceOf(SettlementClientException::class.java)
             .hasCauseInstanceOf(HttpServerErrorException::class.java)
     }
