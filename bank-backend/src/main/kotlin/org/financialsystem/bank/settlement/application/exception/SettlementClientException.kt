@@ -2,5 +2,5 @@ package org.financialsystem.bank.settlement.application.exception
 
 class SettlementClientException(
     message: String,
-    cause: Throwable,
+    cause: Throwable? = null,
 ) : RuntimeException(message, cause)

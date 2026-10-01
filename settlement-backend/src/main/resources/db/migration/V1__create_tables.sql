@@ -3,6 +3,7 @@ CREATE TABLE banks
     id         BIGINT AUTO_INCREMENT NOT NULL,
     created_at datetime              NOT NULL,
     bank_code  VARCHAR(255)          NOT NULL,
+    base_uri   VARCHAR(255)          NOT NULL,
     balance    BIGINT                NOT NULL,
     updated_at datetime              NOT NULL,
     CONSTRAINT pk_banks PRIMARY KEY (id)

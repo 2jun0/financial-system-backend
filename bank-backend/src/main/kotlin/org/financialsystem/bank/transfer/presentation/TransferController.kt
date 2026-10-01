@@ -25,8 +25,5 @@ class TransferController(
         @AuthenticationPrincipal principal: CustomerPrincipal,
         @PathVariable accountNumber: String,
         @Valid @RequestBody transferRequest: TransferRequest,
-    ): TransferResponse {
-        val transfer = transferService.initiateTransfer(principal.customerId, accountNumber, transferRequest)
-        return TransferResponse(transfer.transferKey)
-    }
+    ): TransferResponse = transferService.transfer(principal.customerId, accountNumber, transferRequest)
 }
