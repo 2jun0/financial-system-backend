@@ -67,7 +67,7 @@ class Settlement private constructor(
         protected set
 
     companion object {
-        fun initiate(
+        fun createPending(
             transferKey: String,
             sourceBankId: Long,
             sourceAccountNumber: String,
@@ -95,7 +95,7 @@ class Settlement private constructor(
         state = SettlementState.REJECTED
     }
 
-    fun matchesInitiation(
+    fun matchesRequest(
         sourceBankId: Long,
         sourceAccountNumber: String,
         recipientBankId: Long,

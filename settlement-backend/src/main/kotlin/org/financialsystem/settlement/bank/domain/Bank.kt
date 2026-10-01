@@ -19,6 +19,7 @@ import java.time.LocalDateTime
 )
 class Bank private constructor(
     bankCode: String,
+    baseUri: String,
 ) : IdCreatedAtEntity() {
     @Column(name = "bank_code", nullable = false, updatable = false)
     var bankCode: String = bankCode
@@ -28,13 +29,20 @@ class Bank private constructor(
     var balance: Long = 0L
         protected set
 
+    @Column(name = "base_uri", nullable = false)
+    var baseUri: String = baseUri
+        protected set
+
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime? = null
         protected set
 
     companion object {
-        fun create(bankCode: String): Bank = Bank(bankCode)
+        fun create(
+            bankCode: String,
+            baseUri: String,
+        ): Bank = Bank(bankCode, baseUri)
     }
 
     fun debit(amount: PositiveAmount) {
