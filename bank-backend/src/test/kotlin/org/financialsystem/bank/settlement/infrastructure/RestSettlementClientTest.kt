@@ -22,6 +22,7 @@ import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
 import java.io.IOException
+import java.time.Instant
 
 class RestSettlementClientTest {
     private val baseUrl = "http://settlement.test"
@@ -33,6 +34,7 @@ class RestSettlementClientTest {
             recipientBankCode = "BANK_B",
             recipientAccountNumber = "recipient-account-number",
             amount = PositiveAmount(10_000L),
+            transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z"),
         )
     private lateinit var server: MockRestServiceServer
     private lateinit var settlementClient: RestSettlementClient

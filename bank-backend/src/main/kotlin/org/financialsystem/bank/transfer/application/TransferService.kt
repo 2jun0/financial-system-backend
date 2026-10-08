@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionOperations
+import java.time.Instant
 
 @Service
 class TransferService(
@@ -43,8 +44,9 @@ class TransferService(
         }
 
         val transferKey = transferKeyGenerator.generate()
+        lateinit var transferCreatedAt: Instant
         transactionOperations.executeWithoutResult {
-            initiateTransfer(transferKey, customerId, sourceAccountNumber, transferRequest)
+            transferCreatedAt = initiateTransfer(transferKey, customerId, sourceAccountNumber, transferRequest)
         }
 
         try {
@@ -57,6 +59,7 @@ class TransferService(
                         recipientBankCode = transferRequest.recipientBankCode,
                         recipientAccountNumber = transferRequest.recipientAccountNumber,
                         amount = transferRequest.amount,
+                        transferCreatedAt = transferCreatedAt,
                     ),
                 )
             return transactionOperations.execute {
@@ -76,7 +79,7 @@ class TransferService(
         customerId: Long,
         sourceAccountNumber: String,
         transferRequest: TransferRequest,
-    ) {
+    ): Instant {
         val account = accountRepository.findByAccountNumber(sourceAccountNumber)
         if (account == null || account.customerId != customerId) {
             throw AccountNotFoundException("계좌를 찾을 수 없습니다. : $sourceAccountNumber")
@@ -94,15 +97,17 @@ class TransferService(
             ),
         )
 
-        transferRepository.save(
-            Transfer.initiate(
-                transferKey,
-                sourceAccountId,
-                transferRequest.recipientBankCode,
-                transferRequest.recipientAccountNumber,
-                transferRequest.amount,
-            ),
-        )
+        val transfer =
+            transferRepository.save(
+                Transfer.initiate(
+                    transferKey,
+                    sourceAccountId,
+                    transferRequest.recipientBankCode,
+                    transferRequest.recipientAccountNumber,
+                    transferRequest.amount,
+                ),
+            )
+        return transfer.createdAt!!
     }
 
     private fun applySettlementResult(

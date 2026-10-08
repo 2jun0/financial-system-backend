@@ -21,9 +21,15 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionOperations
 import org.springframework.web.client.RestClientException
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+
+val SETTLEMENT_TIME_LIMIT = Duration.ofSeconds(300)
 
 @Service
 class SettlementService(
+    private val clock: Clock,
     private val bankRepository: BankRepository,
     private val settlementRepository: SettlementRepository,
     private val recipientBankClient: RecipientBankClient,
@@ -43,7 +49,7 @@ class SettlementService(
             bankRepository.findByBankCode(request.recipientBankCode)
                 ?: throw BankNotFoundException("수취 은행을 찾을 수 없습니다.")
 
-        val prevSettlement =
+        val settlementToReturn =
             transactionOperations.execute {
                 checkExistingSettlement(request, sourceBank.id!!, recipientBank.id!!)
                     ?.let {
@@ -51,13 +57,21 @@ class SettlementService(
                     }
 
                 prepareSettlement(request, sourceBank.id!!, recipientBank.id!!)
+                    .let {
+                        if (it.state == SettlementState.REJECTED) return@execute it
+                    }
                 null
             }
-        prevSettlement?.let {
+        settlementToReturn?.let {
             return SettlementResponse.from(it)
         }
 
-        val isValidationPass = validateSettlement(request, recipientBank)
+        val isValidationPass =
+            validateFromRecipientBank(
+                recipientBank,
+                request,
+            ) &&
+                validateTimeLimit(request.transferCreatedAt)
 
         val response =
             transactionOperations.execute {
@@ -96,7 +110,7 @@ class SettlementService(
         request: SettlementRequest,
         sourceBankId: Long,
         recipientBankId: Long,
-    ) {
+    ): Settlement =
         Settlement
             .createPending(
                 request.transferKey,
@@ -105,12 +119,16 @@ class SettlementService(
                 recipientBankId,
                 request.recipientAccountNumber,
                 request.amount,
-            ).apply { settlementRepository.save(this) }
-    }
+                request.transferCreatedAt,
+            ).apply {
+                if (!validateTimeLimit(request.transferCreatedAt)) {
+                    reject()
+                }
+            }.also(settlementRepository::save)
 
-    private fun validateSettlement(
-        request: SettlementRequest,
+    private fun validateFromRecipientBank(
         recipientBank: Bank,
+        request: SettlementRequest,
     ): Boolean {
         try {
             return recipientBankClient
@@ -122,6 +140,7 @@ class SettlementService(
                         request.sourceAccountNumber,
                         request.recipientAccountNumber,
                         request.amount,
+                        request.transferCreatedAt,
                     ),
                 ).isAccepted
         } catch (exception: RestClientException) {
@@ -160,6 +179,9 @@ class SettlementService(
 
         return SettlementResponse.from(settlement)
     }
+
+    private fun validateTimeLimit(transferCreatedAt: Instant): Boolean =
+        Instant.now(clock).isBefore(transferCreatedAt.plus(SETTLEMENT_TIME_LIMIT))
 
     private fun notifySettlementResult(
         recipientBankUri: String,
@@ -216,4 +238,5 @@ class SettlementService(
             throw SourceBankMismatchException("지정된 송금 은행만 결제를 조회할 수 있습니다.")
         }
     }
+
 }

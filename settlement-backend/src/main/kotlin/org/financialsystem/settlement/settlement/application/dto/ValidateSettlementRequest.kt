@@ -1,6 +1,7 @@
 package org.financialsystem.settlement.settlement.application.dto
 
 import org.financialsystem.settlement.money.domain.PositiveAmount
+import java.time.Instant
 
 data class ValidateSettlementRequest(
     val transferKey: String,
@@ -8,4 +9,5 @@ data class ValidateSettlementRequest(
     val sourceAccountNumber: String,
     val recipientAccountNumber: String,
     val amount: PositiveAmount,
+    val transferCreatedAt: Instant,
 )

@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.time.Instant
 
 @WebMvcTest(SettlementController::class)
 class SettlementControllerTest {
@@ -36,6 +37,7 @@ class SettlementControllerTest {
                 recipientBankCode = "BANK_B",
                 recipientAccountNumber = "recipient-account-number",
                 amount = PositiveAmount(10_000),
+                transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z"),
             )
         given(settlementService.requestSettlement(request)).willReturn(
             SettlementResponse(
@@ -56,7 +58,8 @@ class SettlementControllerTest {
                             "sourceAccountNumber": "source-account-number",
                             "recipientBankCode": "BANK_B",
                             "recipientAccountNumber": "recipient-account-number",
-                            "amount": 10000
+                            "amount": 10000,
+                            "transferCreatedAt": "${request.transferCreatedAt}"
                         }
                         """.trimIndent(),
                     ),

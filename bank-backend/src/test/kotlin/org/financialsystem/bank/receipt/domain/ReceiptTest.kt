@@ -2,8 +2,10 @@ package org.financialsystem.bank.receipt.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.financialsystem.ReceiptFixtures
 import org.financialsystem.bank.money.domain.PositiveAmount
 import org.junit.jupiter.api.Test
+import java.time.Instant
 
 class ReceiptTest {
     private val transferKey = "transfer-key"
@@ -11,16 +13,26 @@ class ReceiptTest {
     private val sourceBankCode = "BANK_A"
     private val sourceAccountNumber = "source-account-number"
     private val amount = PositiveAmount(10_000L)
+    private val transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z")
 
     @Test
     fun `수취를 시작하면 수취중 상태로 생성한다`() {
-        val receipt = createReceipt()
+        val receipt =
+            Receipt.initiate(
+                transferKey = transferKey,
+                recipientAccountId = recipientAccountId,
+                sourceBankCode = sourceBankCode,
+                sourceAccountNumber = sourceAccountNumber,
+                amount = amount,
+                transferCreatedAt = transferCreatedAt,
+            )
 
         assertThat(receipt.transferKey).isEqualTo(transferKey)
         assertThat(receipt.recipientAccountId).isEqualTo(recipientAccountId)
         assertThat(receipt.sourceBankCode).isEqualTo(sourceBankCode)
         assertThat(receipt.sourceAccountNumber).isEqualTo(sourceAccountNumber)
         assertThat(receipt.amount).isEqualTo(amount.value)
+        assertThat(receipt.transferCreatedAt).isEqualTo(transferCreatedAt)
         assertThat(receipt.state).isEqualTo(ReceiptState.RECEIVING)
     }
 
@@ -54,11 +66,12 @@ class ReceiptTest {
     }
 
     private fun createReceipt(): Receipt =
-        Receipt.initiate(
+        ReceiptFixtures.receipt(
             transferKey = transferKey,
             recipientAccountId = recipientAccountId,
             sourceBankCode = sourceBankCode,
             sourceAccountNumber = sourceAccountNumber,
-            amount = amount,
+            amount = amount.value,
+            transferCreatedAt = transferCreatedAt,
         )
 }

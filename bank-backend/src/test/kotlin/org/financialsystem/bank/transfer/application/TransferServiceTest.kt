@@ -34,6 +34,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.transaction.support.TransactionOperations
+import java.time.Instant
 import java.util.Optional
 import kotlin.test.Test
 
@@ -59,6 +60,7 @@ class TransferServiceTest {
     private val recipientBankCode = "BANK_B"
     private val recipientAccountNumber = "recipient-account-number"
     private val amount = PositiveAmount(10_000L)
+    private val transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z")
     private val account =
         Account.create(sourceAccountNumber, customerId, "출금 계좌").apply {
             ReflectionTestUtils.setField(this, "id", sourceAccountId)
@@ -98,6 +100,7 @@ class TransferServiceTest {
                 recipientBankCode = recipientBankCode,
                 recipientAccountNumber = recipientAccountNumber,
                 amount = amount,
+                transferCreatedAt = transferCreatedAt,
             )
 
         @Test
@@ -108,6 +111,7 @@ class TransferServiceTest {
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
             given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
                 invocation.getArgument<Transfer>(0).also {
+                    ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
                     savedTransfer = it
                 }
             }
@@ -153,7 +157,10 @@ class TransferServiceTest {
             lateinit var savedTransfer: Transfer
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
             given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
-                invocation.getArgument<Transfer>(0).also { savedTransfer = it }
+                invocation.getArgument<Transfer>(0).also {
+                    ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
+                    savedTransfer = it
+                }
             }
             given(transferRepository.findByTransferKey(any())).willAnswer { savedTransfer }
             given(accountRepository.findById(any())).willReturn(Optional.of(account))
@@ -187,6 +194,11 @@ class TransferServiceTest {
             // given
             val initialBalance = account.balance
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
+                invocation.getArgument<Transfer>(0).also {
+                    ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
+                }
+            }
             doThrow(
                 SettlementClientException("중앙 결제 서버에 연결할 수 없습니다.", RuntimeException("응답 시간 초과")),
             ).`when`(settlementClient).requestSettlement(settlementRequest)
@@ -210,6 +222,11 @@ class TransferServiceTest {
         fun `결제 요청 통신 예외가 아닌 예외는 그대로 전파한다`() {
             // given
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
+                invocation.getArgument<Transfer>(0).also {
+                    ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
+                }
+            }
             doThrow(IllegalStateException("요청 직렬화 실패")).`when`(settlementClient).requestSettlement(settlementRequest)
 
             // when
