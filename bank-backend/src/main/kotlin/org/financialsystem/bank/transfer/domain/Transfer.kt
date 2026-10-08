@@ -10,7 +10,7 @@ import jakarta.persistence.UniqueConstraint
 import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.support.persistence.IdCreatedAtEntity
 import org.springframework.data.annotation.LastModifiedDate
-import java.time.LocalDateTime
+import java.time.Instant
 
 @Entity
 @Table(
@@ -57,7 +57,7 @@ class Transfer private constructor(
 
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime? = null
+    var updatedAt: Instant? = null
         protected set
 
     companion object {

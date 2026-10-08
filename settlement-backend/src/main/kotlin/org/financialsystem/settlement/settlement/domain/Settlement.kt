@@ -10,7 +10,7 @@ import jakarta.persistence.UniqueConstraint
 import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.financialsystem.settlement.support.persistence.IdCreatedAtEntity
 import org.springframework.data.annotation.LastModifiedDate
-import java.time.LocalDateTime
+import java.time.Instant
 
 @Entity
 @Table(
@@ -63,7 +63,7 @@ class Settlement private constructor(
 
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: Instant = Instant.now()
         protected set
 
     companion object {
