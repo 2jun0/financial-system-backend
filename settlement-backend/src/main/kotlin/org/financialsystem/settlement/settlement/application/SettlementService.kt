@@ -4,6 +4,7 @@ import org.financialsystem.settlement.bank.domain.Bank
 import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
 import org.financialsystem.settlement.money.domain.PositiveAmount
+import org.financialsystem.settlement.settlement.application.dto.BatchGetSettlementStatesResponse
 import org.financialsystem.settlement.settlement.application.dto.SettlementDetailResponse
 import org.financialsystem.settlement.settlement.application.dto.SettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
@@ -239,4 +240,21 @@ class SettlementService(
         }
     }
 
+    @Transactional(readOnly = true)
+    fun batchGetSettlementStates(
+        bankCode: String,
+        transferKeys: List<String>,
+    ): BatchGetSettlementStatesResponse {
+        val bank =
+            bankRepository.findByBankCode(bankCode)
+                ?: throw BankNotFoundException("존재하지 않는 은행 코드입니다: $bankCode")
+
+        val settlements =
+            settlementRepository.findAllByBankIdAndTransferKeyIn(
+                bankId = bank.id!!,
+                transferKeys = transferKeys,
+            )
+
+        return BatchGetSettlementStatesResponse.from(settlements)
+    }
 }
