@@ -11,6 +11,7 @@ import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.financialsystem.settlement.settlement.application.dto.SettlementDetailResponse
 import org.financialsystem.settlement.settlement.application.dto.SettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.ValidateSettlementResponse
+import org.financialsystem.settlement.settlement.application.exception.RecipientBankClientException
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.financialsystem.settlement.settlement.exception.SameBankSettlementException
@@ -32,7 +33,6 @@ import org.mockito.kotlin.given
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.springframework.transaction.support.TransactionOperations
-import org.springframework.web.client.RestClientException
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -227,7 +227,7 @@ class SettlementServiceTest {
             given(settlementRepository.findByTransferKey(settlementRequest.transferKey))
                 .willAnswer { savedSettlement }
             given(recipientBankClient.validateSettlement(any(), any()))
-                .willThrow(RestClientException::class.java)
+                .willThrow(RecipientBankClientException("수취 검증 실패"))
 
             // when
             val response = settlementService.requestSettlement(settlementRequest)
@@ -388,7 +388,8 @@ class SettlementServiceTest {
 
             given(recipientBankClient.validateSettlement(any(), any()))
                 .willReturn(ValidateSettlementResponse(true))
-            given(recipientBankClient.notifySettledResult(any(), any())).willThrow(RestClientException::class.java)
+            given(recipientBankClient.notifySettledResult(any(), any()))
+                .willThrow(RecipientBankClientException("결제완료 통지 실패"))
 
             // when
             val response = settlementService.requestSettlement(settlementRequest)

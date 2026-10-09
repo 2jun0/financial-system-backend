@@ -9,6 +9,7 @@ import org.financialsystem.settlement.settlement.application.dto.SettlementDetai
 import org.financialsystem.settlement.settlement.application.dto.SettlementRequest
 import org.financialsystem.settlement.settlement.application.dto.SettlementResponse
 import org.financialsystem.settlement.settlement.application.dto.ValidateSettlementRequest
+import org.financialsystem.settlement.settlement.application.exception.RecipientBankClientException
 import org.financialsystem.settlement.settlement.domain.Settlement
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.financialsystem.settlement.settlement.exception.SameBankSettlementException
@@ -21,7 +22,6 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionOperations
-import org.springframework.web.client.RestClientException
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -144,7 +144,7 @@ class SettlementService(
                         request.transferCreatedAt,
                     ),
                 ).isAccepted
-        } catch (exception: RestClientException) {
+        } catch (exception: RecipientBankClientException) {
             logger.debug("수취 검증 실패", exception)
             return false
         }
@@ -208,7 +208,7 @@ class SettlementService(
                     error("잘못된 상태 통지입니다: ${response.state}")
                 }
             }
-        } catch (exception: RestClientException) {
+        } catch (exception: RecipientBankClientException) {
             logger.debug("결제 결과 통지 실패", exception)
         }
     }
