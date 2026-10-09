@@ -2,6 +2,7 @@ package org.financialsystem.settlement.settlement.application.dto
 
 import jakarta.validation.constraints.NotBlank
 import org.financialsystem.settlement.money.domain.PositiveAmount
+import java.time.Instant
 
 data class SettlementRequest(
     @NotBlank
@@ -15,4 +16,5 @@ data class SettlementRequest(
     @NotBlank
     val recipientAccountNumber: String,
     val amount: PositiveAmount,
+    val transferCreatedAt: Instant,
 )

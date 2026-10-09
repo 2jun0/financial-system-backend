@@ -10,7 +10,7 @@ import jakarta.persistence.UniqueConstraint
 import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.support.persistence.IdCreatedAtEntity
 import org.springframework.data.annotation.LastModifiedDate
-import java.time.LocalDateTime
+import java.time.Instant
 
 @Entity
 @Table(
@@ -29,6 +29,7 @@ class Receipt private constructor(
     sourceAccountNumber: String,
     amount: PositiveAmount,
     state: ReceiptState,
+    transferCreatedAt: Instant,
 ) : IdCreatedAtEntity() {
     @Column(name = "transfer_key", nullable = false, updatable = false)
     var transferKey: String = transferKey
@@ -57,7 +58,11 @@ class Receipt private constructor(
 
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime? = null
+    var updatedAt: Instant? = null
+        protected set
+
+    @Column(name = "transfer_created_at", nullable = false)
+    var transferCreatedAt = transferCreatedAt
         protected set
 
     companion object {
@@ -67,6 +72,7 @@ class Receipt private constructor(
             sourceBankCode: String,
             sourceAccountNumber: String,
             amount: PositiveAmount,
+            transferCreatedAt: Instant,
         ) = Receipt(
             transferKey,
             recipientAccountId,
@@ -74,6 +80,7 @@ class Receipt private constructor(
             sourceAccountNumber,
             amount,
             ReceiptState.RECEIVING,
+            transferCreatedAt,
         )
     }
 

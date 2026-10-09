@@ -17,6 +17,7 @@ import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.Instant
 import kotlin.test.Test
 
 @ExtendWith(MockitoExtension::class)
@@ -92,6 +93,7 @@ class SettlementValidationServiceTest {
             sourceAccountNumber = sourceAccountNumber,
             recipientAccountNumber = recipientAccountNumber,
             amount = amount,
+            transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z"),
         )
 
     private fun createAccount(): Account =

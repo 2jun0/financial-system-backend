@@ -62,6 +62,7 @@ erDiagram
         uuid source_account_number
         money amount
         enum state
+        timestamp transfer_created_at
         timestamp created_at
         timestamp updated_at
     }
@@ -75,7 +76,8 @@ erDiagram
 - `DEBIT.amount`는 음수이고 `CREDIT.amount`와 `COMPENSATION.amount`는 양수다.
 - `TRANSFER.state`는 `송금중`, `성공`, `실패` 중 하나다.
 - `RECEIPT.transfer_key`는 은행 DB 안에서 고유하며 `recipient_account_id`는 수취 계좌를 참조한다.
-- `RECEIPT.state`는 `RECEIVING`(수취대기), `SUCCEEDED`(성공), `FAILED`(실패) 중 하나다.
+- `RECEIPT.state`는 `RECEIVING`(수취중), `SUCCEEDED`(성공), `FAILED`(실패) 중 하나다.
+- `RECEIPT.transfer_created_at`은 수취 검증 요청에 포함된 송금 은행의 송금 생성 시각이며 복구 대상의 만료 여부를 판단하는 기준이다.
 - 은행 간 수취의 잔액 증가, `CREDIT` 기록 생성, `RECEIPT` 성공 변경은 하나의 로컬 DB 트랜잭션으로 처리한다.
 - `TRANSFER.transfer_key`와 `ACCOUNT_TRANSACTION.transfer_key`는 FK로 강제하지 않는다. 수취 은행의 입금 기록과 시연용 내부 이체 기록처럼 같은 은행 DB에 대응하는 `TRANSFER` 행이 없는 경우도 있기 때문이다.
 
@@ -102,7 +104,7 @@ erDiagram
         identifier recipient_bank_id FK
         uuid recipient_account_number
         money amount
-        timestamp requested_at
+        timestamp transfer_created_at
         enum state
         timestamp created_at
         timestamp updated_at
@@ -114,7 +116,7 @@ erDiagram
 - `BANK.bank_code`와 `SETTLEMENT.transfer_key`는 각각 중앙 결제 DB 안에서 고유하다.
 - `SETTLEMENT.source_bank_id`와 `recipient_bank_id`는 서로 달라야 한다.
 - `SETTLEMENT.amount`는 0보다 큰 정수다.
-- `SETTLEMENT.requested_at`은 송금 은행이 정한 최초 결제 요청 시각이며 같은 결제의 재전송에서 변경하지 않는다.
+- `SETTLEMENT.transfer_created_at`은 송금 은행의 송금 생성 시각이며 같은 결제의 재전송에서 변경하지 않는다. 이 시각에서 300초가 지나면 결제가 만료된다.
 - `SETTLEMENT.state`는 `RECIPIENT_VALIDATION_PENDING`, `SETTLED`, `REJECTED` 중 하나다.
 - `SETTLED` 전이와 양쪽 `BANK.balance` 변경은 하나의 중앙 DB 트랜잭션으로 처리한다.
 

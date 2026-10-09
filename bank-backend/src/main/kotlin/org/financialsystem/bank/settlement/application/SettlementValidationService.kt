@@ -27,6 +27,7 @@ class SettlementValidationService(
                     sourceBankCode = request.sourceBankCode,
                     sourceAccountNumber = request.sourceAccountNumber,
                     amount = request.amount,
+                    transferCreatedAt = request.transferCreatedAt,
                 ),
             )
         }

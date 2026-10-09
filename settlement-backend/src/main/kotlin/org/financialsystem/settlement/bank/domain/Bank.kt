@@ -8,7 +8,7 @@ import org.financialsystem.settlement.bank.exception.InsufficientBalanceExceptio
 import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.financialsystem.settlement.support.persistence.IdCreatedAtEntity
 import org.springframework.data.annotation.LastModifiedDate
-import java.time.LocalDateTime
+import java.time.Instant
 
 @Entity
 @Table(
@@ -35,7 +35,7 @@ class Bank private constructor(
 
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime? = null
+    var updatedAt: Instant? = null
         protected set
 
     companion object {

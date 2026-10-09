@@ -2,6 +2,7 @@ package org.financialsystem.bank.receipt.application
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.financialsystem.ReceiptFixtures
 import org.financialsystem.bank.account.domain.Account
 import org.financialsystem.bank.account.domain.AccountTransaction
 import org.financialsystem.bank.account.domain.AccountTransactionType
@@ -134,12 +135,12 @@ class SettlementResultServiceTest {
     }
 
     private fun createReceipt(): Receipt =
-        Receipt.initiate(
+        ReceiptFixtures.receipt(
             transferKey = transferKey,
             recipientAccountId = recipientAccountId,
             sourceBankCode = sourceBankCode,
             sourceAccountNumber = sourceAccountNumber,
-            amount = amount,
+            amount = amount.value,
         )
 
     private fun createAccount(): Account =

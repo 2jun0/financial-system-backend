@@ -3,6 +3,7 @@ package org.financialsystem.settlement.settlement.application
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.financialsystem.BankFixtures
+import org.financialsystem.SettlementFixtures
 import org.financialsystem.settlement.bank.domain.Bank
 import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
@@ -24,12 +25,17 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.Mock
+import org.mockito.Mockito.mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.mockito.kotlin.given
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.springframework.transaction.support.TransactionOperations
 import org.springframework.web.client.RestClientException
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Optional
 
 @ExtendWith(MockitoExtension::class)
@@ -37,6 +43,9 @@ class SettlementServiceTest {
     val bankA = BankFixtures.bank(bankCode = "BANK_A", balance = 10_000L)
     val bankB = BankFixtures.bank(bankCode = "BANK_B", balance = 10_000L)
     val bankC = BankFixtures.bank(bankCode = "BANK_C", balance = 10_000L)
+
+    val now = Instant.parse("2026-10-04T00:00:00Z")
+    val clock = Clock.fixed(now, ZoneId.systemDefault())
 
     @Mock
     lateinit var settlementRepository: SettlementRepository
@@ -53,6 +62,7 @@ class SettlementServiceTest {
     fun setUp() {
         settlementService =
             SettlementService(
+                clock,
                 bankRepository,
                 settlementRepository,
                 recipientBankClient,
@@ -68,13 +78,14 @@ class SettlementServiceTest {
         sourceAccountNumber: String = "${sourceBank.bankCode}_ACCOUNT",
         recipientAccountNumber: String = "${recipientBank.bankCode}_ACCOUNT",
     ): Settlement =
-        Settlement.createPending(
+        SettlementFixtures.settlement(
             transferKey = transferKey,
             sourceBankId = sourceBank.id!!,
             sourceAccountNumber = sourceAccountNumber,
             recipientBankId = recipientBank.id!!,
             recipientAccountNumber = recipientAccountNumber,
-            amount = PositiveAmount(amount),
+            amount = amount,
+            transferCreatedAt = now,
         )
 
     @Nested
@@ -137,6 +148,7 @@ class SettlementServiceTest {
                 recipientBankCode = bankB.bankCode,
                 recipientAccountNumber = "BANK_B_ACCOUNT",
                 amount = PositiveAmount(10_000L),
+                transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z"),
             )
 
         @Test
@@ -270,6 +282,7 @@ class SettlementServiceTest {
                     recipientBankCode = "bankCode",
                     recipientAccountNumber = "BANK_A_ACCOUNT",
                     amount = PositiveAmount(10_000),
+                    transferCreatedAt = settlementRequest.transferCreatedAt,
                 )
 
             // when
@@ -383,6 +396,72 @@ class SettlementServiceTest {
             // then
             assertThat(response.transferKey).isEqualTo(settlementRequest.transferKey)
             assertThat(response.state).isEqualTo(SettlementState.SETTLED)
+        }
+
+        @Test
+        fun `만료된 요청인 경우엔 결제를 거절한다`() {
+            // given
+            val request =
+                settlementRequest.copy(
+                    transferCreatedAt =
+                        settlementRequest.transferCreatedAt
+                            .minus(SETTLEMENT_TIME_LIMIT),
+                )
+            given(settlementRepository.findByTransferKey(any())).willReturn(null)
+            given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
+            given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
+
+            // when
+            val response = settlementService.requestSettlement(request)
+
+            // then
+            assertThat(response.transferKey).isEqualTo(request.transferKey)
+            assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+            assertThat(bankA.balance).isEqualTo(10_000L)
+            assertThat(bankB.balance).isEqualTo(10_000L)
+            verifyNoInteractions(recipientBankClient)
+        }
+
+        @Test
+        fun `수취 검증 후 만료되면 결제를 거절한다`() {
+            // given
+            var savedSettlement: Settlement? = null
+            var currentTime = now
+            val clock = mock<Clock>()
+            val service =
+                SettlementService(
+                    clock,
+                    bankRepository,
+                    settlementRepository,
+                    recipientBankClient,
+                    TransactionOperations.withoutTransaction(),
+                )
+            given(clock.instant()).willAnswer { currentTime }
+
+            given(settlementRepository.save(any<Settlement>())).willAnswer { invocation ->
+                invocation.getArgument<Settlement>(0).also { savedSettlement = it }
+            }
+            given(settlementRepository.findByTransferKey(any()))
+                .willAnswer { savedSettlement }
+            given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
+            given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
+            given(recipientBankClient.validateSettlement(any(), any()))
+                .willAnswer {
+                    // 만료시킴
+                    currentTime = now.plus(SETTLEMENT_TIME_LIMIT)
+                    ValidateSettlementResponse(true)
+                }
+
+            // when
+            val response = service.requestSettlement(settlementRequest)
+
+            // then
+            assertThat(response.transferKey).isEqualTo(settlementRequest.transferKey)
+            assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+            assertThat(bankA.balance).isEqualTo(10_000L)
+            assertThat(bankB.balance).isEqualTo(10_000L)
+            verify(recipientBankClient)
+                .notifyRejectedResult(bankB.baseUri, settlementRequest.transferKey)
         }
     }
 }

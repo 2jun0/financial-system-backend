@@ -2,13 +2,17 @@ package org.financialsystem.settlement.settlement.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.financialsystem.SettlementFixtures
 import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
+import java.time.Instant
 import kotlin.test.Test
 
 class SettlementTest {
+    private val transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z")
+
     @Nested
     inner class `결제를 생성한다` {
         @Test
@@ -20,7 +24,8 @@ class SettlementTest {
                     sourceAccountNumber = "BANK_A_ACCOUNT",
                     recipientBankId = 2L,
                     recipientAccountNumber = "BANK_B_ACCOUNT",
-                    PositiveAmount(10_000L),
+                    amount = PositiveAmount(10_000L),
+                    transferCreatedAt = transferCreatedAt,
                 )
 
             assertThat(settlement.transferKey).isEqualTo("transfer-key")
@@ -36,13 +41,10 @@ class SettlementTest {
     @Nested
     inner class `상태를 변경한다` {
         val pendingSettlement =
-            Settlement.createPending(
+            SettlementFixtures.settlement(
                 transferKey = "transfer-key",
                 sourceBankId = 1L,
-                sourceAccountNumber = "BANK_A_ACCOUNT",
                 recipientBankId = 2L,
-                recipientAccountNumber = "BANK_B_ACCOUNT",
-                PositiveAmount(10_000L),
             )
 
         @Test
@@ -107,7 +109,8 @@ class SettlementTest {
                 sourceAccountNumber = "BANK_A_ACCOUNT",
                 recipientBankId = 2L,
                 recipientAccountNumber = "BANK_B_ACCOUNT",
-                PositiveAmount(10_000L),
+                amount = PositiveAmount(10_000L),
+                transferCreatedAt = transferCreatedAt,
             )
 
         assertThat(settlement.transferKey).isEqualTo("transfer-key")
@@ -122,13 +125,10 @@ class SettlementTest {
     @Nested
     inner class `요청 내용과 동일한지 비교한다` {
         val settlement =
-            Settlement.createPending(
+            SettlementFixtures.settlement(
                 transferKey = "transfer-key",
                 sourceBankId = 1L,
-                sourceAccountNumber = "BANK_A_ACCOUNT",
                 recipientBankId = 2L,
-                recipientAccountNumber = "BANK_B_ACCOUNT",
-                PositiveAmount(10_000L),
             )
 
         @Test
@@ -148,13 +148,12 @@ class SettlementTest {
         @Test
         fun `파라미터 값이 하나라도 다르면 false를 반환한다`() {
             val settlement =
-                Settlement.createPending(
+                SettlementFixtures.settlement(
                     transferKey = "transfer-key",
                     sourceBankId = 1L,
                     sourceAccountNumber = "source-account",
                     recipientBankId = 2L,
                     recipientAccountNumber = "recipient-account",
-                    amount = PositiveAmount(10_000L),
                 )
 
             fun matches(

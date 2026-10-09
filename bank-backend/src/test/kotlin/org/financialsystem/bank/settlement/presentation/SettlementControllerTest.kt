@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 
 @WebMvcTest(SettlementController::class)
 @Import(SecurityConfig::class)
@@ -47,6 +48,7 @@ class SettlementControllerTest {
                 sourceAccountNumber = "BANK_A_ACCOUNT",
                 recipientAccountNumber = "BANK_B_ACCOUNT",
                 amount = PositiveAmount(10_000),
+                transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z"),
             )
 
         given(settlementValidationService.validateSettlement(request))
@@ -73,6 +75,7 @@ class SettlementControllerTest {
                 sourceAccountNumber = "BANK_A_ACCOUNT",
                 recipientAccountNumber = "BANK_B_ACCOUNT",
                 amount = PositiveAmount(10_000),
+                transferCreatedAt = Instant.parse("2026-10-04T00:00:00Z"),
             )
 
         mockMvc
