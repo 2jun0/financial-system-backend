@@ -1,9 +1,9 @@
 package org.financialsystem.settlement.settlement.application
 
 import org.assertj.core.api.Assertions.assertThat
-import org.financialsystem.SettlementFixtures
 import org.financialsystem.settlement.settlement.domain.SettlementState
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
+import org.financialsystem.settlement.support.SettlementFixtures
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.extension.ExtendWith

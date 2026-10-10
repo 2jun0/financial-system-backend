@@ -1,4 +1,4 @@
-package org.financialsystem
+package org.financialsystem.bank.support
 
 import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.receipt.domain.Receipt

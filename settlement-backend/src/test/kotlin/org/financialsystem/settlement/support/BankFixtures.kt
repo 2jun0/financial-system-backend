@@ -1,4 +1,4 @@
-package org.financialsystem
+package org.financialsystem.settlement.support
 
 import org.financialsystem.settlement.bank.domain.Bank
 import org.financialsystem.settlement.money.domain.PositiveAmount

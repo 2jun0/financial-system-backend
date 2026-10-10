@@ -2,7 +2,6 @@ package org.financialsystem.bank.receipt.application
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.financialsystem.ReceiptFixtures
 import org.financialsystem.bank.account.domain.Account
 import org.financialsystem.bank.account.domain.AccountTransaction
 import org.financialsystem.bank.account.domain.AccountTransactionType
@@ -13,6 +12,7 @@ import org.financialsystem.bank.receipt.domain.Receipt
 import org.financialsystem.bank.receipt.domain.ReceiptState
 import org.financialsystem.bank.receipt.infrastructure.ReceiptRepository
 import org.financialsystem.bank.settlement.application.SettlementResultService
+import org.financialsystem.bank.support.ReceiptFixtures
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor

@@ -2,8 +2,8 @@ package org.financialsystem.settlement.settlement.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.financialsystem.SettlementFixtures
 import org.financialsystem.settlement.money.domain.PositiveAmount
+import org.financialsystem.settlement.support.SettlementFixtures
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
