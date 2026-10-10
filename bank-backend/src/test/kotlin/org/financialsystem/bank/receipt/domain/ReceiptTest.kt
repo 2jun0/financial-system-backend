@@ -2,8 +2,8 @@ package org.financialsystem.bank.receipt.domain
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.financialsystem.ReceiptFixtures
 import org.financialsystem.bank.money.domain.PositiveAmount
+import org.financialsystem.bank.support.ReceiptFixtures
 import org.junit.jupiter.api.Test
 import java.time.Instant
 

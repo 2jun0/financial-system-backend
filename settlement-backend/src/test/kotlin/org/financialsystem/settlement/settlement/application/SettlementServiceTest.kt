@@ -2,8 +2,6 @@ package org.financialsystem.settlement.settlement.application
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.financialsystem.BankFixtures
-import org.financialsystem.SettlementFixtures
 import org.financialsystem.settlement.bank.domain.Bank
 import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
@@ -18,6 +16,8 @@ import org.financialsystem.settlement.settlement.exception.SameBankSettlementExc
 import org.financialsystem.settlement.settlement.exception.SourceBankMismatchException
 import org.financialsystem.settlement.settlement.exception.TransferKeyDuplicatedException
 import org.financialsystem.settlement.settlement.infrastructure.SettlementRepository
+import org.financialsystem.settlement.support.BankFixtures
+import org.financialsystem.settlement.support.SettlementFixtures
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

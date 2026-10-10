@@ -1,7 +1,6 @@
 package org.financialsystem.bank.transfer.application
 
 import org.assertj.core.api.Assertions.assertThat
-import org.financialsystem.TransferFixtures
 import org.financialsystem.bank.account.domain.Account
 import org.financialsystem.bank.account.domain.AccountTransaction
 import org.financialsystem.bank.account.domain.AccountTransactionType
@@ -14,6 +13,7 @@ import org.financialsystem.bank.settlement.application.dto.BatchGetSettlementSta
 import org.financialsystem.bank.settlement.application.dto.BatchGetSettlementStatesResponse
 import org.financialsystem.bank.settlement.application.dto.SettlementState
 import org.financialsystem.bank.settlement.application.exception.SettlementClientException
+import org.financialsystem.bank.support.TransferFixtures
 import org.financialsystem.bank.transfer.domain.TransferState
 import org.financialsystem.bank.transfer.infrastructure.TransferRepository
 import org.junit.jupiter.api.BeforeEach

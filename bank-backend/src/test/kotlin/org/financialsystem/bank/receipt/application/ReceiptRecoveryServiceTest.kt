@@ -1,7 +1,6 @@
 package org.financialsystem.bank.receipt.application
 
 import org.assertj.core.api.Assertions.assertThat
-import org.financialsystem.ReceiptFixtures
 import org.financialsystem.bank.account.domain.Account
 import org.financialsystem.bank.account.domain.AccountTransaction
 import org.financialsystem.bank.account.domain.AccountTransactionType
@@ -16,6 +15,7 @@ import org.financialsystem.bank.settlement.application.dto.BatchGetSettlementSta
 import org.financialsystem.bank.settlement.application.dto.BatchGetSettlementStatesResponse
 import org.financialsystem.bank.settlement.application.dto.SettlementState
 import org.financialsystem.bank.settlement.application.exception.SettlementClientException
+import org.financialsystem.bank.support.ReceiptFixtures
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.extension.ExtendWith
