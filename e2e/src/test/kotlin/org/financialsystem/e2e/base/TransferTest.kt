@@ -463,7 +463,7 @@ class TransferTest : E2ETest() {
                 sql = "SELECT balance FROM accounts WHERE account_number='B-001'",
             ) { resultSet ->
                 assertThat(resultSet.next()).isTrue()
-                assertThat(resultSet.getInt("balance")).isEqualTo(110_000)
+                assertThat(resultSet.getLong("balance")).isEqualTo(110_000L)
                 assertThat(resultSet.next()).isFalse()
             }
 

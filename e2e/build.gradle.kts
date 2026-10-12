@@ -23,7 +23,6 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.testcontainers:testcontainers")
-    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("tools.jackson.module:jackson-module-kotlin")
 
     testImplementation("io.rest-assured:rest-assured:6.0.1")
