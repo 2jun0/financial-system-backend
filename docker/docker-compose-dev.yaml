@@ -1,10 +1,73 @@
 name: financial-system-backend-dev
 
 services:
+  bank-a-backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        APP_DIR: bank-backend
+    profiles:
+      - all
+    environment:
+      SPRING_PROFILES_ACTIVE: bank-a
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-bank-a:3306/bank_a
+      SPRING_DATASOURCE_USERNAME: bank_a
+      SPRING_DATASOURCE_PASSWORD: bank_a_dev_password
+      SETTLEMENT_BASE_URL: http://settlement-backend
+      SERVER_PORT: 80
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      mysql-bank-a:
+        condition: service_healthy
+
+  bank-b-backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        APP_DIR: bank-backend
+    profiles:
+      - all
+    environment:
+      SPRING_PROFILES_ACTIVE: bank-b
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-bank-b:3306/bank_b
+      SPRING_DATASOURCE_USERNAME: bank_b
+      SPRING_DATASOURCE_PASSWORD: bank_b_dev_password
+      SETTLEMENT_BASE_URL: http://settlement-backend
+      SERVER_PORT: 80
+    ports:
+      - "127.0.0.1:8082:80"
+    depends_on:
+      mysql-bank-b:
+        condition: service_healthy
+
+  settlement-backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        APP_DIR: settlement-backend
+    profiles:
+      - all
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-settlement:3306/settlement
+      SPRING_DATASOURCE_USERNAME: settlement
+      SPRING_DATASOURCE_PASSWORD: settlement_dev_password
+      SERVER_PORT: 80
+    ports:
+      - "127.0.0.1:8083:80"
+    depends_on:
+      mysql-settlement:
+        condition: service_healthy
+
   mysql-bank-a:
     image: mysql:8.4.11
     profiles:
-      - bank-a
+      - bank-a-db
+      - all
     environment:
       MYSQL_DATABASE: bank_a
       MYSQL_USER: bank_a
@@ -12,13 +75,19 @@ services:
       MYSQL_ROOT_PASSWORD: bank_a_root_dev_password
     ports:
       - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - bank-a-data:/var/lib/mysql
 
   mysql-bank-b:
     image: mysql:8.4.11
     profiles:
-      - bank-b
+      - bank-b-db
+      - all
     environment:
       MYSQL_DATABASE: bank_b
       MYSQL_USER: bank_b
@@ -26,13 +95,19 @@ services:
       MYSQL_ROOT_PASSWORD: bank_b_root_dev_password
     ports:
       - "127.0.0.1:3308:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - bank-b-data:/var/lib/mysql
 
   mysql-settlement:
     image: mysql:8.4.11
     profiles:
-      - settlement
+      - settlement-db
+      - all
     environment:
       MYSQL_DATABASE: settlement
       MYSQL_USER: settlement
@@ -40,6 +115,11 @@ services:
       MYSQL_ROOT_PASSWORD: settlement_root_dev_password
     ports:
       - "127.0.0.1:3309:3306"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - settlement-data:/var/lib/mysql
 
