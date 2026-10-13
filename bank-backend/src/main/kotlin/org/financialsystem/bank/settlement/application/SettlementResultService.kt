@@ -22,17 +22,17 @@ class SettlementResultService(
             receiptRepository.findByTransferKey(transferKey)
                 ?: error("수취 기록을 찾을 수 없습니다. transferKey=$transferKey")
 
+        val account =
+            accountRepository.findByIdOrNull(receipt.recipientAccountId)
+                ?: error("수취 계좌를 찾을 수 없습니다. accountId=${receipt.recipientAccountId}")
+        account.credit(PositiveAmount(receipt.amount))
+
         if (receipt.state == ReceiptState.SUCCEEDED) {
             return
         }
         check(receipt.state == ReceiptState.RECEIVING) {
             "실패한 수취를 성공 처리할 수 없습니다. transferKey=$transferKey"
         }
-
-        val account =
-            accountRepository.findByIdOrNull(receipt.recipientAccountId)
-                ?: error("수취 계좌를 찾을 수 없습니다. accountId=${receipt.recipientAccountId}")
-        account.credit(PositiveAmount(receipt.amount))
 
         accountTransactionRepository.save(
             AccountTransaction.recordCredit(
