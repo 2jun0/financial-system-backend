@@ -58,4 +58,23 @@ class ReceiptScenarioIntegrationTest {
         assertThat(transaction.otherBankCode).isEqualTo("BANK_A")
         assertThat(transaction.otherAccountNumber).isEqualTo("A-001")
     }
+
+    @Test
+    @Sql("/sql/receipt/S-302.sql")
+    fun `S-302 결제거절 결과를 통지받으면 입금 없이 수취를 실패 처리한다`() {
+        // when
+        mockMvc
+            .post("/settlement-results/E-302/rejected")
+            .andExpect {
+                status { isNoContent() }
+            }
+
+        // then
+        val receipt = receiptRepository.findAll().single()
+        assertThat(receipt.state).isEqualTo(ReceiptState.FAILED)
+
+        val account = accountRepository.findByAccountNumber("B-001")
+        assertThat(account?.balance).isEqualTo(100_000L)
+        assertThat(accountTransactionRepository.findAll()).isEmpty()
+    }
 }
