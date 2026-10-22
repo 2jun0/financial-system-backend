@@ -386,6 +386,82 @@ class TransferScenarioIntegrationTest {
         assertThat(transaction.otherAccountNumber).isEqualTo("B-001")
     }
 
+    @Test
+    @Sql("/sql/transfer/S-106.sql")
+    fun `S-106 결제거절 응답이 유실되면 만료 후 출금을 보상하고 송금을 실패 처리한다`() {
+        // given
+        val principal = CustomerPrincipal(1L, "customer", "password-hash")
+        settlementServer.stubFor(
+            WireMock
+                .post(urlEqualTo("/settlements"))
+                .willReturn(aResponse().withFault(EMPTY_RESPONSE)),
+        )
+        settlementServer.stubFor(
+            WireMock
+                .get(urlPathEqualTo("/settlements:batchGetStates"))
+                .withQueryParam("bankCode", equalTo("BANK_A"))
+                .withQueryParam("transferKeys", matching(".+"))
+                .willReturn(
+                    okJson(
+                        """
+                        {
+                            "states": {
+                                "{{request.query.transferKeys}}": "REJECTED"
+                            }
+                        }
+                        """.trimIndent(),
+                    ).withTransformers("response-template"),
+                ),
+        )
+
+        // when
+        mockMvc
+            .post("/account/A-001/transfer") {
+                with(user(principal))
+                contentType = MediaType.APPLICATION_JSON
+                content =
+                    """
+                    {
+                        "recipientBankCode": "BANK_B",
+                        "recipientAccountNumber": "B-001",
+                        "amount": 10000
+                    }
+                    """.trimIndent()
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.state") { value("TRANSFERRING") }
+            }
+
+        val transfer = transferRepository.findAll().single()
+        val afterExpiration = requireNotNull(transfer.createdAt).plusSeconds(301)
+        doReturn(afterExpiration).whenever(clock).instant()
+        Thread.sleep(1_000)
+
+        // then
+        val afterTransfer = transferRepository.findAll().single()
+        assertThat(afterTransfer.state).isEqualTo(TransferState.FAILED)
+
+        val account = accountRepository.findByAccountNumber("A-001")
+        assertThat(account?.balance).isEqualTo(100_000L)
+
+        val transactions = accountTransactionRepository.findAll()
+        assertThat(transactions).hasSize(2)
+
+        val debit = transactions.single { it.type == AccountTransactionType.DEBIT }
+        assertThat(debit.accountId).isEqualTo(1L)
+        assertThat(debit.transferKey).isEqualTo(transfer.transferKey)
+        assertThat(debit.amount).isEqualTo(-10_000L)
+        assertThat(debit.otherBankCode).isEqualTo("BANK_B")
+        assertThat(debit.otherAccountNumber).isEqualTo("B-001")
+
+        val compensation = transactions.single { it.type == AccountTransactionType.COMPENSATION }
+        assertThat(compensation.accountId).isEqualTo(1L)
+        assertThat(compensation.transferKey).isEqualTo(transfer.transferKey)
+        assertThat(compensation.amount).isEqualTo(10_000L)
+        assertThat(compensation.otherBankCode).isEqualTo("BANK_B")
+        assertThat(compensation.otherAccountNumber).isEqualTo("B-001")
+    }
+
     class SettlementWireMockConfig : WireMockConfigurationCustomizer {
         override fun customize(
             configuration: WireMockConfiguration,
