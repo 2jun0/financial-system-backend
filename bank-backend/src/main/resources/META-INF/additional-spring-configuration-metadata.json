@@ -5,6 +5,12 @@
       "type": "java.lang.Long",
       "description": "송금 복구 작업 완료 후 다음 실행까지의 대기 시간(밀리초).",
       "defaultValue": 30000
+    },
+    {
+      "name": "receipt.recovery.fixed-delay",
+      "type": "java.lang.Long",
+      "description": "수취 복구 작업 완료 후 다음 실행까지의 대기 시간(밀리초).",
+      "defaultValue": 30000
     }
   ]
 }
