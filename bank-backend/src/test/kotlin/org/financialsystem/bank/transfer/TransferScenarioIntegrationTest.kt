@@ -2,6 +2,8 @@ package org.financialsystem.bank.transfer
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
+import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor
+import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import com.github.tomakehurst.wiremock.client.WireMock.equalToJson
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
@@ -123,6 +125,38 @@ class TransferScenarioIntegrationTest {
         assertThat(transaction.amount).isEqualTo(-10_000L)
         assertThat(transaction.otherBankCode).isEqualTo("BANK_B")
         assertThat(transaction.otherAccountNumber).isEqualTo("B-001")
+    }
+
+    @Test
+    @Sql("/sql/transfer/s102.sql")
+    fun `S-102 잔액이 부족하면 송금 요청을 거절한다`() {
+        // given
+        val principal = CustomerPrincipal(1L, "customer", "password-hash")
+
+        // when
+        mockMvc
+            .post("/account/A-001/transfer") {
+                with(user(principal))
+                contentType = MediaType.APPLICATION_JSON
+                content =
+                    """
+                    {
+                        "recipientBankCode": "BANK_B",
+                        "recipientAccountNumber": "B-001",
+                        "amount": 120000
+                    }
+                    """.trimIndent()
+            }.andExpect {
+                status { isConflict() }
+                jsonPath("$.code") { value("INSUFFICIENT_BALANCE") }
+            }
+
+        // then
+        val account = accountRepository.findByAccountNumber("A-001")
+        assertThat(account?.balance).isEqualTo(100_000L)
+        assertThat(transferRepository.findAll()).isEmpty()
+        assertThat(accountTransactionRepository.findAll()).isEmpty()
+        settlementServer.verify(0, anyRequestedFor(anyUrl()))
     }
 
     class SettlementWireMockConfig : WireMockConfigurationCustomizer {
