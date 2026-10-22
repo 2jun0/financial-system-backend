@@ -2,6 +2,7 @@ package org.financialsystem.bank.transfer
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
+import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import com.github.tomakehurst.wiremock.client.WireMock.equalTo
@@ -11,6 +12,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.github.tomakehurst.wiremock.http.Fault.EMPTY_RESPONSE
 import org.assertj.core.api.Assertions.assertThat
 import org.financialsystem.bank.account.domain.AccountTransactionType
 import org.financialsystem.bank.account.infrastructure.AccountRepository
@@ -315,6 +317,73 @@ class TransferScenarioIntegrationTest {
         assertThat(compensation.amount).isEqualTo(10_000L)
         assertThat(compensation.otherBankCode).isEqualTo("BANK_B")
         assertThat(compensation.otherAccountNumber).isEqualTo("B-001")
+    }
+
+    @Test
+    @Sql("/sql/transfer/S-105.sql")
+    fun `S-105 결제완료 응답이 유실되면 만료 후 송금을 성공 처리한다`() {
+        // given
+        val principal = CustomerPrincipal(1L, "customer", "password-hash")
+        settlementServer.stubFor(
+            WireMock
+                .post(urlEqualTo("/settlements"))
+                .willReturn(aResponse().withFault(EMPTY_RESPONSE)),
+        )
+        settlementServer.stubFor(
+            WireMock
+                .get(urlPathEqualTo("/settlements:batchGetStates"))
+                .withQueryParam("bankCode", equalTo("BANK_A"))
+                .withQueryParam("transferKeys", matching(".+"))
+                .willReturn(
+                    okJson(
+                        """
+                        {
+                            "states": {
+                                "{{request.query.transferKeys}}": "SETTLED"
+                            }
+                        }
+                        """.trimIndent(),
+                    ).withTransformers("response-template"),
+                ),
+        )
+
+        // when
+        mockMvc
+            .post("/account/A-001/transfer") {
+                with(user(principal))
+                contentType = MediaType.APPLICATION_JSON
+                content =
+                    """
+                    {
+                        "recipientBankCode": "BANK_B",
+                        "recipientAccountNumber": "B-001",
+                        "amount": 10000
+                    }
+                    """.trimIndent()
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.state") { value("TRANSFERRING") }
+            }
+
+        val transfer = transferRepository.findAll().single()
+        val afterExpiration = requireNotNull(transfer.createdAt).plusSeconds(301)
+        doReturn(afterExpiration).whenever(clock).instant()
+        Thread.sleep(1_000)
+
+        // then
+        val afterTransfer = transferRepository.findAll().single()
+        assertThat(afterTransfer.state).isEqualTo(TransferState.SUCCEEDED)
+
+        val account = accountRepository.findByAccountNumber("A-001")
+        assertThat(account?.balance).isEqualTo(90_000L)
+
+        val transaction = accountTransactionRepository.findAll().single()
+        assertThat(transaction.accountId).isEqualTo(1L)
+        assertThat(transaction.transferKey).isEqualTo(transfer.transferKey)
+        assertThat(transaction.type).isEqualTo(AccountTransactionType.DEBIT)
+        assertThat(transaction.amount).isEqualTo(-10_000L)
+        assertThat(transaction.otherBankCode).isEqualTo("BANK_B")
+        assertThat(transaction.otherAccountNumber).isEqualTo("B-001")
     }
 
     class SettlementWireMockConfig : WireMockConfigurationCustomizer {
