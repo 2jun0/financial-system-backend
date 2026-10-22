@@ -56,7 +56,7 @@ class TransferScenarioIntegrationTest {
     lateinit var accountTransactionRepository: AccountTransactionRepository
 
     @Test
-    @Sql("/sql/transfer/s101.sql")
+    @Sql("/sql/transfer/S-101.sql")
     fun `S101 중앙 결제완료 응답을 받으면 송금을 성공 처리한다`() {
         // given
         val principal = CustomerPrincipal(1L, "customer", "password-hash")
@@ -128,7 +128,7 @@ class TransferScenarioIntegrationTest {
     }
 
     @Test
-    @Sql("/sql/transfer/s102.sql")
+    @Sql("/sql/transfer/S-102.sql")
     fun `S-102 잔액이 부족하면 송금 요청을 거절한다`() {
         // given
         val principal = CustomerPrincipal(1L, "customer", "password-hash")
@@ -157,6 +157,87 @@ class TransferScenarioIntegrationTest {
         assertThat(transferRepository.findAll()).isEmpty()
         assertThat(accountTransactionRepository.findAll()).isEmpty()
         settlementServer.verify(0, anyRequestedFor(anyUrl()))
+    }
+
+    @Test
+    @Sql("/sql/transfer/S-103.sql")
+    fun `S-103 중앙 결제거절 응답을 받으면 출금을 보상하고 송금을 실패 처리한다`() {
+        // given
+        val principal = CustomerPrincipal(1L, "customer", "password-hash")
+        settlementServer.stubFor(
+            WireMock
+                .post(urlEqualTo("/settlements"))
+                .withRequestBody(
+                    equalToJson(
+                        """
+                        {
+                            "sourceBankCode": "BANK_A",
+                            "sourceAccountNumber": "A-001",
+                            "recipientBankCode": "BANK_B",
+                            "recipientAccountNumber": "B-001",
+                            "amount": 10000
+                        }
+                        """.trimIndent(),
+                        true,
+                        true,
+                    ),
+                ).willReturn(
+                    okJson(
+                        """
+                        {
+                            "transferKey": "{{jsonPath request.body '$.transferKey'}}",
+                            "state": "REJECTED"
+                        }
+                        """.trimIndent(),
+                    ).withTransformers("response-template"),
+                ),
+        )
+
+        // when
+        val result =
+            mockMvc
+                .post("/account/A-001/transfer") {
+                    with(user(principal))
+                    contentType = MediaType.APPLICATION_JSON
+                    content =
+                        """
+                        {
+                            "recipientBankCode": "BANK_B",
+                            "recipientAccountNumber": "B-001",
+                            "amount": 10000
+                        }
+                        """.trimIndent()
+                }.andExpect {
+                    status { isOk() }
+                    jsonPath("$.state") { value("FAILED") }
+                }
+
+        // then
+        val transfer = transferRepository.findAll().single()
+        result.andExpect {
+            jsonPath("$.transferKey") { value(transfer.transferKey) }
+        }
+        assertThat(transfer.state).isEqualTo(TransferState.FAILED)
+
+        val account = accountRepository.findByAccountNumber("A-001")
+        assertThat(account?.balance).isEqualTo(100_000L)
+
+        val transactions = accountTransactionRepository.findAll()
+        assertThat(transactions).hasSize(2)
+
+        val debit = transactions.single { it.type == AccountTransactionType.DEBIT }
+        assertThat(debit.accountId).isEqualTo(1L)
+        assertThat(debit.transferKey).isEqualTo(transfer.transferKey)
+        assertThat(debit.amount).isEqualTo(-10_000L)
+        assertThat(debit.otherBankCode).isEqualTo("BANK_B")
+        assertThat(debit.otherAccountNumber).isEqualTo("B-001")
+
+        val compensation = transactions.single { it.type == AccountTransactionType.COMPENSATION }
+        assertThat(compensation.accountId).isEqualTo(1L)
+        assertThat(compensation.transferKey).isEqualTo(transfer.transferKey)
+        assertThat(compensation.amount).isEqualTo(10_000L)
+        assertThat(compensation.otherBankCode).isEqualTo("BANK_B")
+        assertThat(compensation.otherAccountNumber).isEqualTo("B-001")
     }
 
     class SettlementWireMockConfig : WireMockConfigurationCustomizer {
