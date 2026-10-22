@@ -140,4 +140,41 @@ class ReceiptScenarioIntegrationTest {
         assertThat(transaction.otherBankCode).isEqualTo("BANK_A")
         assertThat(transaction.otherAccountNumber).isEqualTo("A-001")
     }
+
+    @Test
+    @Sql("/sql/receipt/S-304.sql")
+    fun `S-304 결제거절 결과 통지가 도달하지 않으면 만료 후 입금 없이 수취를 실패 처리한다`() {
+        // given
+        settlementServer.stubFor(
+            WireMock
+                .get(urlPathEqualTo("/settlements:batchGetStates"))
+                .withQueryParam("bankCode", equalTo("BANK_B"))
+                .withQueryParam("transferKeys", equalTo("E-205"))
+                .willReturn(
+                    okJson(
+                        """
+                        {
+                            "states": {
+                                "E-205": "REJECTED"
+                            }
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+        )
+
+        // when
+        val receipt = receiptRepository.findAll().single()
+        val afterExpiration = receipt.transferCreatedAt.plusSeconds(301)
+        doReturn(afterExpiration).whenever(clock).instant()
+        Thread.sleep(1_000)
+
+        // then
+        val afterReceipt = receiptRepository.findAll().single()
+        assertThat(afterReceipt.state).isEqualTo(ReceiptState.FAILED)
+
+        val account = accountRepository.findByAccountNumber("B-001")
+        assertThat(account?.balance).isEqualTo(100_000L)
+        assertThat(accountTransactionRepository.findAll()).isEmpty()
+    }
 }
