@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component
 class TransferRecoveryScheduler(
     private val transferRecoveryService: TransferRecoveryService,
 ) {
-    @Scheduled(fixedDelay = 30_000L)
+    @Scheduled(fixedDelayString = $$"${transfer.recovery.fixed-delay:30000}")
     fun recoverUnresolvedTransfers() {
         transferRecoveryService.recoverUnresolvedTransfers()
     }
