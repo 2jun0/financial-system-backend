@@ -1,0 +1,10 @@
+{
+  "properties": [
+    {
+      "name": "transfer.recovery.fixed-delay",
+      "type": "java.lang.Long",
+      "description": "송금 복구 작업 완료 후 다음 실행까지의 대기 시간(밀리초).",
+      "defaultValue": 30000
+    }
+  ]
+}
