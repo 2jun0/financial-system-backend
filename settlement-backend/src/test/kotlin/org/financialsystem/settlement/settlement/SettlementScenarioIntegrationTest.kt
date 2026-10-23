@@ -2,11 +2,13 @@ package org.financialsystem.settlement.settlement
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
+import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.equalToJson
 import com.github.tomakehurst.wiremock.client.WireMock.noContent
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.github.tomakehurst.wiremock.http.Fault.EMPTY_RESPONSE
 import org.assertj.core.api.Assertions.assertThat
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
 import org.financialsystem.settlement.settlement.domain.SettlementState
@@ -298,6 +300,66 @@ class SettlementScenarioIntegrationTest {
         assertThat(bankRepository.findByBankCode("BANK_A")?.balance).isEqualTo(1_000_000L)
         assertThat(bankRepository.findByBankCode("BANK_B")?.balance).isEqualTo(1_000_000L)
         bankServer.verify(WireMock.postRequestedFor(urlEqualTo("/settlement-results/E-204/rejected")))
+        bankServer.verify(
+            1,
+            WireMock.postRequestedFor(urlEqualTo("/settlement-validations")).withRequestBody(equalToJson(validationRequest)),
+        )
+    }
+
+    @Test
+    @Sql("/sql/settlement/S-205.sql")
+    fun `S-205 수취 검증 응답이 유실되면 결제를 거절하고 결제잔액을 유지한다`() {
+        // given
+        val validationRequest =
+            """
+            {
+                "transferKey": "E-205",
+                "sourceBankCode": "BANK_A",
+                "sourceAccountNumber": "A-001",
+                "recipientAccountNumber": "B-001",
+                "amount": 10000,
+                "transferCreatedAt": "2026-10-24T00:00:00Z"
+            }
+            """.trimIndent()
+        bankServer.stubFor(
+            WireMock
+                .post(urlEqualTo("/settlement-validations"))
+                .withRequestBody(equalToJson(validationRequest))
+                .willReturn(aResponse().withFault(EMPTY_RESPONSE)),
+        )
+        bankServer.stubFor(
+            WireMock.post(urlEqualTo("/settlement-results/E-205/rejected")).willReturn(noContent()),
+        )
+
+        // when
+        mockMvc
+            .post("/settlements") {
+                contentType = MediaType.APPLICATION_JSON
+                content =
+                    """
+                    {
+                        "transferKey": "E-205",
+                        "sourceBankCode": "BANK_A",
+                        "sourceAccountNumber": "A-001",
+                        "recipientBankCode": "BANK_B",
+                        "recipientAccountNumber": "B-001",
+                        "amount": 10000,
+                        "transferCreatedAt": "2026-10-24T00:00:00Z"
+                    }
+                    """.trimIndent()
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.transferKey") { value("E-205") }
+                jsonPath("$.state") { value("REJECTED") }
+            }
+
+        // then
+        val settlement = settlementRepository.findAll().single()
+        assertThat(settlement.transferKey).isEqualTo("E-205")
+        assertThat(settlement.state).isEqualTo(SettlementState.REJECTED)
+        assertThat(bankRepository.findByBankCode("BANK_A")?.balance).isEqualTo(1_000_000L)
+        assertThat(bankRepository.findByBankCode("BANK_B")?.balance).isEqualTo(1_000_000L)
+        bankServer.verify(WireMock.postRequestedFor(urlEqualTo("/settlement-results/E-205/rejected")))
         bankServer.verify(
             1,
             WireMock.postRequestedFor(urlEqualTo("/settlement-validations")).withRequestBody(equalToJson(validationRequest)),
