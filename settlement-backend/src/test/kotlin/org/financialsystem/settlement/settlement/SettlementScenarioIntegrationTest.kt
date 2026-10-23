@@ -366,6 +366,43 @@ class SettlementScenarioIntegrationTest {
         )
     }
 
+    @Test
+    @Sql("/sql/settlement/S-206.sql")
+    fun `S-206 만료된 결제 요청을 받으면 결제를 거절하고 결제잔액을 유지한다`() {
+        // given
+        doReturn(Instant.parse("2026-10-24T00:05:01Z")).whenever(clock).instant()
+
+        // when
+        mockMvc
+            .post("/settlements") {
+                contentType = MediaType.APPLICATION_JSON
+                content =
+                    """
+                    {
+                        "transferKey": "E-206",
+                        "sourceBankCode": "BANK_A",
+                        "sourceAccountNumber": "A-001",
+                        "recipientBankCode": "BANK_B",
+                        "recipientAccountNumber": "B-001",
+                        "amount": 10000,
+                        "transferCreatedAt": "2026-10-24T00:00:00Z"
+                    }
+                    """.trimIndent()
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.transferKey") { value("E-206") }
+                jsonPath("$.state") { value("REJECTED") }
+            }
+
+        // then
+        val settlement = settlementRepository.findAll().single()
+        assertThat(settlement.transferKey).isEqualTo("E-206")
+        assertThat(settlement.state).isEqualTo(SettlementState.REJECTED)
+        assertThat(bankRepository.findByBankCode("BANK_A")?.balance).isEqualTo(1_000_000L)
+        assertThat(bankRepository.findByBankCode("BANK_B")?.balance).isEqualTo(1_000_000L)
+        bankServer.verify(0, WireMock.postRequestedFor(urlEqualTo("/settlement-validations")))
+    }
+
     class BankWireMockConfig : WireMockConfigurationCustomizer {
         override fun customize(
             configuration: WireMockConfiguration,
