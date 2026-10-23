@@ -184,6 +184,66 @@ class SettlementScenarioIntegrationTest {
         )
     }
 
+    @Test
+    @Sql("/sql/settlement/S-203.sql")
+    fun `S-203 송금 은행의 결제잔액이 부족하면 결제를 거절하고 결제잔액을 유지한다`() {
+        // given
+        val validationRequest =
+            """
+            {
+                "transferKey": "E-203",
+                "sourceBankCode": "BANK_A",
+                "sourceAccountNumber": "A-001",
+                "recipientAccountNumber": "B-001",
+                "amount": 10000,
+                "transferCreatedAt": "2026-10-24T00:00:00Z"
+            }
+            """.trimIndent()
+        bankServer.stubFor(
+            WireMock
+                .post(urlEqualTo("/settlement-validations"))
+                .withRequestBody(equalToJson(validationRequest))
+                .willReturn(okJson("""{"isAccepted": true}""")),
+        )
+        bankServer.stubFor(
+            WireMock.post(urlEqualTo("/settlement-results/E-203/rejected")).willReturn(noContent()),
+        )
+
+        // when
+        mockMvc
+            .post("/settlements") {
+                contentType = MediaType.APPLICATION_JSON
+                content =
+                    """
+                    {
+                        "transferKey": "E-203",
+                        "sourceBankCode": "BANK_A",
+                        "sourceAccountNumber": "A-001",
+                        "recipientBankCode": "BANK_B",
+                        "recipientAccountNumber": "B-001",
+                        "amount": 10000,
+                        "transferCreatedAt": "2026-10-24T00:00:00Z"
+                    }
+                    """.trimIndent()
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.transferKey") { value("E-203") }
+                jsonPath("$.state") { value("REJECTED") }
+            }
+
+        // then
+        val settlement = settlementRepository.findAll().single()
+        assertThat(settlement.transferKey).isEqualTo("E-203")
+        assertThat(settlement.state).isEqualTo(SettlementState.REJECTED)
+        assertThat(bankRepository.findByBankCode("BANK_A")?.balance).isEqualTo(5_000L)
+        assertThat(bankRepository.findByBankCode("BANK_B")?.balance).isEqualTo(1_000_000L)
+        bankServer.verify(WireMock.postRequestedFor(urlEqualTo("/settlement-results/E-203/rejected")))
+        bankServer.verify(
+            1,
+            WireMock.postRequestedFor(urlEqualTo("/settlement-validations")).withRequestBody(equalToJson(validationRequest)),
+        )
+    }
+
     class BankWireMockConfig : WireMockConfigurationCustomizer {
         override fun customize(
             configuration: WireMockConfiguration,
