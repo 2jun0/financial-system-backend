@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component
 class ReceiptRecoveryScheduler(
     private val receiptRecoveryService: ReceiptRecoveryService,
 ) {
-    @Scheduled(fixedDelay = 30_000L)
+    @Scheduled(fixedDelayString = $$"${receipt.recovery.fixed-delay:30000}")
     fun recoverUnresolvedTransfers() {
         receiptRecoveryService.recoverUnresolvedReceipts()
     }
