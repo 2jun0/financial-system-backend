@@ -2,6 +2,7 @@ package org.financialsystem.bank.transfer.application
 
 import org.financialsystem.bank.account.application.exception.AccountNotFoundException
 import org.financialsystem.bank.account.domain.AccountTransaction
+import org.financialsystem.bank.account.domain.exception.InsufficientBalanceException
 import org.financialsystem.bank.account.infrastructure.AccountRepository
 import org.financialsystem.bank.account.infrastructure.AccountTransactionRepository
 import org.financialsystem.bank.money.domain.PositiveAmount
@@ -86,7 +87,16 @@ class TransferService(
         }
 
         val sourceAccountId = account.id!!
-        account.debit(transferRequest.amount)
+        val debitedCount =
+            accountRepository.debitIfSufficientBalance(
+                sourceAccountNumber,
+                customerId,
+                transferRequest.amount.value,
+                Instant.now(),
+            )
+        if (debitedCount == 0) {
+            throw InsufficientBalanceException("잔액이 부족합니다.")
+        }
         accountTransactionRepository.save(
             AccountTransaction.recordDebit(
                 sourceAccountId,
