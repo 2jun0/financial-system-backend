@@ -3,7 +3,6 @@ package org.financialsystem.settlement.settlement.application
 import org.financialsystem.settlement.bank.domain.Bank
 import org.financialsystem.settlement.bank.exception.BankNotFoundException
 import org.financialsystem.settlement.bank.infrastructure.BankRepository
-import org.financialsystem.settlement.money.domain.PositiveAmount
 import org.financialsystem.settlement.settlement.application.dto.BatchGetSettlementStatesResponse
 import org.financialsystem.settlement.settlement.application.dto.SettlementDetailResponse
 import org.financialsystem.settlement.settlement.application.dto.SettlementRequest
@@ -52,6 +51,7 @@ class SettlementService(
 
         val settlementToReturn =
             transactionOperations.execute {
+                lockBanks(sourceBank.id!!, recipientBank.id!!)
                 checkExistingSettlement(request, sourceBank.id!!, recipientBank.id!!)
                     ?.let {
                         return@execute it
@@ -76,11 +76,21 @@ class SettlementService(
 
         val response =
             transactionOperations.execute {
-                applySettlement(request.transferKey, isValidationPass)
+                lockBanks(sourceBank.id!!, recipientBank.id!!)
+                applySettlement(request.transferKey, isValidationPass && validateTimeLimit(request.transferCreatedAt))
             }
         notifySettlementResult(recipientBank.baseUri, response)
 
         return response
+    }
+
+    private fun lockBanks(
+        sourceBankId: Long,
+        recipientBankId: Long,
+    ) {
+        listOf(sourceBankId, recipientBankId).sorted().forEach { bankId ->
+            bankRepository.findByIdForUpdate(bankId)
+        }
     }
 
     private fun checkExistingSettlement(
@@ -159,18 +169,12 @@ class SettlementService(
                 ?: error("결제를 찾을 수 없습니다. transferKey:$transferKey")
 
         if (isAccepted) {
-            val sourceBank =
-                bankRepository.findByIdOrNull(settlement.sourceBankId)
-                    ?: error("송금 은행을 찾을 수 없습니다. id:${settlement.sourceBankId}")
-            val recipientBank =
-                bankRepository.findByIdOrNull(settlement.recipientBankId)
-                    ?: error("수취 은행을 찾을 수 없습니다. id:${settlement.recipientBankId}")
-
-            if (sourceBank.balance >= settlement.amount) {
+            val now = Instant.now(clock)
+            val debitedCount = bankRepository.debitIfSufficientBalance(settlement.sourceBankId, settlement.amount, now)
+            if (debitedCount == 1) {
+                val creditedCount = bankRepository.credit(settlement.recipientBankId, settlement.amount, now)
+                check(creditedCount == 1) { "수취 은행을 찾을 수 없습니다. id:${settlement.recipientBankId}" }
                 settlement.settle()
-                val amount = PositiveAmount(settlement.amount)
-                sourceBank.debit(amount)
-                recipientBank.credit(amount)
             } else {
                 settlement.reject()
             }
