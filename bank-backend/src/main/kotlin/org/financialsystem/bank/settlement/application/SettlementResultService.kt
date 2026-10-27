@@ -7,8 +7,8 @@ import org.financialsystem.bank.account.infrastructure.AccountTransactionReposit
 import org.financialsystem.bank.money.domain.PositiveAmount
 import org.financialsystem.bank.receipt.domain.ReceiptState
 import org.financialsystem.bank.receipt.infrastructure.ReceiptRepository
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
+import java.time.Instant
 
 @Service
 class SettlementResultService(
@@ -29,10 +29,8 @@ class SettlementResultService(
             "실패한 수취를 성공 처리할 수 없습니다. transferKey=$transferKey"
         }
 
-        val account =
-            accountRepository.findByIdOrNull(receipt.recipientAccountId)
-                ?: error("수취 계좌를 찾을 수 없습니다. accountId=${receipt.recipientAccountId}")
-        account.credit(PositiveAmount(receipt.amount))
+        val creditedCount = accountRepository.credit(receipt.recipientAccountId, receipt.amount, Instant.now())
+        check(creditedCount == 1) { "수취 계좌를 찾을 수 없습니다. accountId=${receipt.recipientAccountId}" }
 
         accountTransactionRepository.save(
             AccountTransaction.recordCredit(

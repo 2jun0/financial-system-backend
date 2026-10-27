@@ -73,12 +73,12 @@ class ReceiptRecoveryService(
         settlementStates: Map<String, SettlementState>,
     ) {
         val receipts = receiptRepository.findAllByTransferKeyIn(transferKeys)
-        val accounts = accountRepository.findAllById(receipts.map { it.recipientAccountId }).associateBy { it.id }
 
         for (receipt in receipts) {
             val state = settlementStates[receipt.transferKey]
             if (state == SETTLED) {
-                accounts.getValue(receipt.recipientAccountId).credit(PositiveAmount(receipt.amount))
+                val creditedCount = accountRepository.credit(receipt.recipientAccountId, receipt.amount, Instant.now(clock))
+                check(creditedCount == 1) { "수취 계좌를 찾을 수 없습니다. accountId=${receipt.recipientAccountId}" }
 
                 accountTransactionRepository.save(
                     AccountTransaction.recordCredit(

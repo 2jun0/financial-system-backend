@@ -12,6 +12,21 @@ interface AccountRepository : JpaRepository<Account, Long> {
 
     fun findAllByCustomerId(customerId: Long): List<Account>
 
+    @Modifying(flushAutomatically = true)
+    @Query(
+        """
+        UPDATE Account account
+        SET account.balance = account.balance + :amount,
+            account.updatedAt = :updatedAt
+        WHERE account.id = :accountId
+        """,
+    )
+    fun credit(
+        @Param("accountId") accountId: Long,
+        @Param("amount") amount: Long,
+        @Param("updatedAt") updatedAt: Instant,
+    ): Int
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         """
