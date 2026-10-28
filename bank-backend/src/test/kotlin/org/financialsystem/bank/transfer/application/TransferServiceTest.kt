@@ -31,6 +31,7 @@ import org.mockito.Mockito.times
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.verify
 import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.transaction.support.TransactionOperations
@@ -106,9 +107,10 @@ class TransferServiceTest {
         @Test
         fun `성공시 출금 내역을 기록하고 송금 성공 상태를 반영한다`() {
             // given
-            val initialBalance = account.balance
             lateinit var savedTransfer: Transfer
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(accountRepository.debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any()))
+                .willReturn(1)
             given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
                 invocation.getArgument<Transfer>(0).also {
                     ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
@@ -123,6 +125,7 @@ class TransferServiceTest {
             val response = transferService.transfer(customerId, sourceAccountNumber, transferRequest)
 
             // then
+            verify(accountRepository).debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any())
             val transactionCaptor = ArgumentCaptor.forClass(AccountTransaction::class.java)
             verify(accountTransactionRepository).save(transactionCaptor.capture())
             val transaction = transactionCaptor.value
@@ -132,8 +135,6 @@ class TransferServiceTest {
 
             assertThat(response.transferKey).isEqualTo(transferKey)
             assertThat(response.state).isEqualTo(TransferState.SUCCEEDED)
-
-            assertThat(account.balance).isEqualTo(initialBalance - amount.value)
 
             assertThat(transfer.transferKey).isEqualTo(transferKey)
             assertThat(transfer.sourceAccountId).isEqualTo(sourceAccountId)
@@ -154,8 +155,15 @@ class TransferServiceTest {
         fun `결제가 거절되면 잔액을 복구하고 보상 내역과 송금 실패 상태를 반영한다`() {
             // given
             val initialBalance = account.balance
+            val debitedAccount =
+                Account.create(sourceAccountNumber, customerId, "출금 계좌").apply {
+                    ReflectionTestUtils.setField(this, "id", sourceAccountId)
+                    credit(PositiveAmount(initialBalance - amount.value))
+                }
             lateinit var savedTransfer: Transfer
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(accountRepository.debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any()))
+                .willReturn(1)
             given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
                 invocation.getArgument<Transfer>(0).also {
                     ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
@@ -163,7 +171,7 @@ class TransferServiceTest {
                 }
             }
             given(transferRepository.findByTransferKey(any())).willAnswer { savedTransfer }
-            given(accountRepository.findById(any())).willReturn(Optional.of(account))
+            given(accountRepository.findById(any())).willReturn(Optional.of(debitedAccount))
             given(settlementClient.requestSettlement(any()))
                 .willReturn(SettlementResponse(transferKey, SettlementState.REJECTED))
 
@@ -180,7 +188,7 @@ class TransferServiceTest {
 
             assertThat(savedTransfer.state).isEqualTo(TransferState.FAILED)
 
-            assertThat(account.balance).isEqualTo(initialBalance)
+            assertThat(debitedAccount.balance).isEqualTo(initialBalance)
 
             assertThat(compensation.transferKey).isEqualTo(transferKey)
             assertThat(compensation.accountId).isEqualTo(sourceAccountId)
@@ -192,8 +200,9 @@ class TransferServiceTest {
         @Test
         fun `결제 요청이 실패하면 송금중으로 유지한다`() {
             // given
-            val initialBalance = account.balance
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(accountRepository.debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any()))
+                .willReturn(1)
             given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
                 invocation.getArgument<Transfer>(0).also {
                     ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
@@ -207,6 +216,7 @@ class TransferServiceTest {
             val response = transferService.transfer(customerId, sourceAccountNumber, transferRequest)
 
             // then
+            verify(accountRepository).debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any())
             val transferCaptor = ArgumentCaptor.forClass(Transfer::class.java)
             verify(transferRepository).save(transferCaptor.capture())
             val transfer = transferCaptor.value
@@ -215,13 +225,14 @@ class TransferServiceTest {
             assertThat(response.state).isEqualTo(TransferState.TRANSFERRING)
 
             assertThat(transfer.state).isEqualTo(TransferState.TRANSFERRING)
-            assertThat(account.balance).isEqualTo(initialBalance - amount.value)
         }
 
         @Test
         fun `결제 요청 통신 예외가 아닌 예외는 그대로 전파한다`() {
             // given
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(accountRepository.debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any()))
+                .willReturn(1)
             given(transferRepository.save(any<Transfer>())).willAnswer { invocation ->
                 invocation.getArgument<Transfer>(0).also {
                     ReflectionTestUtils.setField(it, "createdAt", transferCreatedAt)
@@ -296,6 +307,8 @@ class TransferServiceTest {
             account.debit(PositiveAmount(25_000L))
             val initialBalance = account.balance
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
+            given(accountRepository.debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any()))
+                .willReturn(0)
 
             // when
             assertThatThrownBy {
@@ -304,6 +317,7 @@ class TransferServiceTest {
                 // then
                 .isInstanceOf(InsufficientBalanceException::class.java)
 
+            verify(accountRepository).debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any())
             assertThat(account.balance).isEqualTo(initialBalance)
             verifyNoInteractions(accountTransactionRepository, transferRepository, settlementClient)
         }

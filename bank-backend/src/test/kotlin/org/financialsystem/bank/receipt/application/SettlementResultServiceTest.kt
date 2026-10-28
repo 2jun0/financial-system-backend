@@ -2,7 +2,6 @@ package org.financialsystem.bank.receipt.application
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.financialsystem.bank.account.domain.Account
 import org.financialsystem.bank.account.domain.AccountTransaction
 import org.financialsystem.bank.account.domain.AccountTransactionType
 import org.financialsystem.bank.account.infrastructure.AccountRepository
@@ -21,8 +20,8 @@ import org.mockito.Mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
 import org.mockito.junit.jupiter.MockitoExtension
-import org.springframework.test.util.ReflectionTestUtils
-import java.util.Optional
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import kotlin.test.Test
 
 @ExtendWith(MockitoExtension::class)
@@ -38,7 +37,6 @@ class SettlementResultServiceTest {
 
     private val transferKey = "transfer-key"
     private val recipientAccountId = 1L
-    private val recipientAccountNumber = "BANK_B_ACCOUNT"
     private val sourceBankCode = "BANK_A"
     private val sourceAccountNumber = "BANK_A_ACCOUNT"
     private val amount = PositiveAmount(10_000L)
@@ -53,9 +51,8 @@ class SettlementResultServiceTest {
     @Test
     fun `결제완료 결과를 반영하면 수취 계좌에 입금하고 입금 기록과 수취 성공을 남긴다`() {
         val receipt = createReceipt()
-        val account = createAccount()
         given(receiptRepository.findByTransferKey(transferKey)).willReturn(receipt)
-        given(accountRepository.findById(recipientAccountId)).willReturn(Optional.of(account))
+        given(accountRepository.credit(eq(recipientAccountId), eq(amount.value), any())).willReturn(1)
 
         settlementResultService.applySettledResult(transferKey)
 
@@ -63,7 +60,7 @@ class SettlementResultServiceTest {
         verify(accountTransactionRepository).save(transactionCaptor.capture())
         val transaction = transactionCaptor.value
         assertThat(receipt.state).isEqualTo(ReceiptState.SUCCEEDED)
-        assertThat(account.balance).isEqualTo(amount.value)
+        verify(accountRepository).credit(eq(recipientAccountId), eq(amount.value), any())
         assertThat(transaction.accountId).isEqualTo(recipientAccountId)
         assertThat(transaction.transferKey).isEqualTo(transferKey)
         assertThat(transaction.otherBankCode).isEqualTo(sourceBankCode)
@@ -142,9 +139,4 @@ class SettlementResultServiceTest {
             sourceAccountNumber = sourceAccountNumber,
             amount = amount.value,
         )
-
-    private fun createAccount(): Account =
-        Account.create(recipientAccountNumber, customerId = 1L, name = "수취 계좌").also {
-            ReflectionTestUtils.setField(it, "id", recipientAccountId)
-        }
 }

@@ -27,6 +27,7 @@ import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
@@ -91,7 +92,6 @@ class ReceiptRecoveryServiceTest {
                 )
             val transferKeys = listOf(receipt.transferKey)
             val request = BatchGetSettlementStatesRequest(bankCode, transferKeys)
-            val initialBalance = account.balance
 
             given(receiptRepository.findRecoveryTargets(any(), any(), any(), any(), any(), any()))
                 .willReturn(listOf(receipt), emptyList())
@@ -103,15 +103,15 @@ class ReceiptRecoveryServiceTest {
                 )
             given(receiptRepository.findAllByTransferKeyIn(transferKeys))
                 .willReturn(listOf(receipt))
-            given(accountRepository.findAllById(listOf(account.id!!)))
-                .willReturn(listOf(account))
+
+            given(accountRepository.credit(eq(receipt.recipientAccountId), eq(receipt.amount), eq(now))).willReturn(1)
 
             // when
             receiptRecoveryService.recoverUnresolvedReceipts()
 
             // then
             assertThat(receipt.state).isEqualTo(ReceiptState.SUCCEEDED)
-            assertThat(account.balance).isEqualTo(initialBalance + receipt.amount)
+            verify(accountRepository).credit(receipt.recipientAccountId, receipt.amount, now)
 
             val transactionCaptor = argumentCaptor<AccountTransaction>()
             verify(accountTransactionRepository).save(transactionCaptor.capture())
@@ -151,8 +151,6 @@ class ReceiptRecoveryServiceTest {
                 )
             given(receiptRepository.findAllByTransferKeyIn(transferKeys))
                 .willReturn(listOf(receipt))
-            given(accountRepository.findAllById(listOf(account.id!!)))
-                .willReturn(listOf(account))
 
             // when
             receiptRecoveryService.recoverUnresolvedReceipts()
@@ -187,8 +185,6 @@ class ReceiptRecoveryServiceTest {
                 )
             given(receiptRepository.findAllByTransferKeyIn(transferKeys))
                 .willReturn(listOf(receipt))
-            given(accountRepository.findAllById(listOf(account.id!!)))
-                .willReturn(listOf(account))
 
             // when
             receiptRecoveryService.recoverUnresolvedReceipts()
