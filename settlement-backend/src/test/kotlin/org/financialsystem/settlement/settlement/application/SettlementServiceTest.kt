@@ -30,6 +30,7 @@ import org.mockito.Mockito.mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.mockito.kotlin.given
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.springframework.transaction.support.TransactionOperations
@@ -158,10 +159,8 @@ class SettlementServiceTest {
 
             given(bankRepository.findByBankCode(bankA.bankCode))
                 .willReturn(bankA)
-            given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
             given(bankRepository.findByBankCode(bankB.bankCode))
                 .willReturn(bankB)
-            given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
 
             given(settlementRepository.save(any<Settlement>())).willAnswer { invocation ->
                 invocation.getArgument<Settlement>(0).also { savedSettlement = it }
@@ -172,6 +171,9 @@ class SettlementServiceTest {
             given(recipientBankClient.validateSettlement(any(), any()))
                 .willReturn(ValidateSettlementResponse(true))
 
+            given(bankRepository.debitIfSufficientBalance(bankA.id!!, settlementRequest.amount.value, now)).willReturn(1)
+            given(bankRepository.credit(bankB.id!!, settlementRequest.amount.value, now)).willReturn(1)
+
             // when
             val response = settlementService.requestSettlement(settlementRequest)
 
@@ -180,8 +182,8 @@ class SettlementServiceTest {
                 .notifySettledResult(bankB.baseUri, settlementRequest.transferKey)
             assertThat(response.transferKey).isEqualTo(settlementRequest.transferKey)
             assertThat(response.state).isEqualTo(SettlementState.SETTLED)
-            assertThat(bankA.balance).isEqualTo(10_000L - settlementRequest.amount.value)
-            assertThat(bankB.balance).isEqualTo(10_000L + settlementRequest.amount.value)
+            verify(bankRepository).debitIfSufficientBalance(bankA.id!!, settlementRequest.amount.value, now)
+            verify(bankRepository).credit(bankB.id!!, settlementRequest.amount.value, now)
         }
 
         @Test
@@ -346,8 +348,6 @@ class SettlementServiceTest {
 
             given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
             given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
-            given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
-            given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
             given(settlementRepository.save(any<Settlement>())).willAnswer { invocation ->
                 invocation.getArgument<Settlement>(0).also { savedSettlement = it }
             }
@@ -356,13 +356,15 @@ class SettlementServiceTest {
             given(recipientBankClient.validateSettlement(any(), any()))
                 .willReturn(ValidateSettlementResponse(true))
 
+            given(bankRepository.debitIfSufficientBalance(bankA.id!!, settlementRequest.amount.value, now)).willReturn(0)
+
             // when
             val response = settlementService.requestSettlement(settlementRequest)
 
             // then
             assertThat(response.transferKey).isEqualTo(settlementRequest.transferKey)
             assertThat(response.state).isEqualTo(SettlementState.REJECTED)
-            assertThat(bankA.balance).isEqualTo(1L)
+            verify(bankRepository, never()).credit(any(), any(), any())
             assertThat(bankB.balance).isEqualTo(10_000L)
             verify(recipientBankClient)
                 .notifyRejectedResult(bankB.baseUri, settlementRequest.transferKey)
@@ -375,10 +377,8 @@ class SettlementServiceTest {
 
             given(bankRepository.findByBankCode(bankA.bankCode))
                 .willReturn(bankA)
-            given(bankRepository.findById(bankA.id!!)).willReturn(Optional.of(bankA))
             given(bankRepository.findByBankCode(bankB.bankCode))
                 .willReturn(bankB)
-            given(bankRepository.findById(bankB.id!!)).willReturn(Optional.of(bankB))
 
             given(settlementRepository.save(any<Settlement>())).willAnswer { invocation ->
                 invocation.getArgument<Settlement>(0).also { savedSettlement = it }
@@ -390,6 +390,9 @@ class SettlementServiceTest {
                 .willReturn(ValidateSettlementResponse(true))
             given(recipientBankClient.notifySettledResult(any(), any()))
                 .willThrow(RecipientBankClientException("결제완료 통지 실패"))
+
+            given(bankRepository.debitIfSufficientBalance(bankA.id!!, settlementRequest.amount.value, now)).willReturn(1)
+            given(bankRepository.credit(bankB.id!!, settlementRequest.amount.value, now)).willReturn(1)
 
             // when
             val response = settlementService.requestSettlement(settlementRequest)
@@ -463,6 +466,44 @@ class SettlementServiceTest {
             assertThat(bankB.balance).isEqualTo(10_000L)
             verify(recipientBankClient)
                 .notifyRejectedResult(bankB.baseUri, settlementRequest.transferKey)
+        }
+
+        @Test
+        fun `은행 잠금을 기다리는 동안 만료되면 결제를 거절한다`() {
+            // given
+            var savedSettlement: Settlement? = null
+            var currentTime = now
+            val clock = mock<Clock>()
+            val service =
+                SettlementService(
+                    clock,
+                    bankRepository,
+                    settlementRepository,
+                    recipientBankClient,
+                    TransactionOperations.withoutTransaction(),
+                )
+            given(clock.instant()).willAnswer { currentTime }
+            given(bankRepository.findByBankCode("BANK_A")).willReturn(bankA)
+            given(bankRepository.findByBankCode("BANK_B")).willReturn(bankB)
+            given(settlementRepository.save(any<Settlement>())).willAnswer {
+                it.getArgument<Settlement>(0).also { savedSettlement = it }
+            }
+            given(settlementRepository.findByTransferKey(any())).willAnswer { savedSettlement }
+            given(recipientBankClient.validateSettlement(any(), any())).willAnswer {
+                given(bankRepository.findByIdForUpdate(bankA.id!!)).willAnswer {
+                    currentTime = now.plus(SETTLEMENT_TIME_LIMIT)
+                    bankA
+                }
+                ValidateSettlementResponse(true)
+            }
+
+            // when
+            val response = service.requestSettlement(settlementRequest)
+
+            // then
+            assertThat(response.state).isEqualTo(SettlementState.REJECTED)
+            verify(bankRepository, never()).debitIfSufficientBalance(any(), any(), any())
+            verify(bankRepository, never()).credit(any(), any(), any())
         }
     }
 }
