@@ -102,4 +102,57 @@ class TransferConcurrencyIntegrationTest {
             assertThat(transaction.amount).isEqualTo(-10_000L)
         }
     }
+
+    @Test
+    @Sql("/sql/transfer/concurrent-transfers.sql")
+    fun `같은 계좌의 서로 다른 송금을 동시에 환불해도 모든 환불액을 반영한다`() {
+        // given
+        val requestCount = 20
+        val settlementRequests = CountDownLatch(requestCount)
+        whenever(settlementClient.requestSettlement(any())).thenAnswer {
+            val request = it.getArgument<SettlementRequest>(0)
+            settlementRequests.countDown()
+            check(settlementRequests.await(10, SECONDS)) { "모든 송금의 출금이 완료되지 않았습니다." }
+            SettlementResponse(request.transferKey, SettlementState.REJECTED)
+        }
+
+        // when
+        val responses =
+            Executors.newFixedThreadPool(requestCount).use { executor ->
+                val futures =
+                    List(requestCount) {
+                        executor.submit<Result<TransferResponse>> {
+                            runCatching {
+                                transferService.transfer(
+                                    customerId = 1L,
+                                    sourceAccountNumber = "A-001",
+                                    transferRequest = TransferRequest("BANK_B", "B-001", PositiveAmount(5_000)),
+                                )
+                            }
+                        }
+                    }
+                futures.map { it.get(30, SECONDS) }
+            }
+
+        // then
+        assertThat(responses.map { it.exceptionOrNull() }).containsOnlyNulls()
+        assertThat(accountRepository.findByAccountNumber("A-001")?.balance).isEqualTo(100_000L)
+
+        val transfers = transferRepository.findAll()
+        assertThat(transfers).hasSize(requestCount)
+        assertThat(transfers.map { it.transferKey }.toSet()).hasSize(requestCount)
+        assertThat(transfers.map { it.state }).containsOnly(TransferState.FAILED)
+
+        val transactions = accountTransactionRepository.findAll()
+        assertThat(transactions).hasSize(requestCount * 2)
+        assertThat(transactions.sumOf { it.amount }).isZero()
+        transfers.forEach { transfer ->
+            val records = transactions.filter { it.transferKey == transfer.transferKey }
+            assertThat(records.map { it.accountId }).containsOnly(1L)
+            assertThat(records.map { it.type to it.amount }).containsExactlyInAnyOrder(
+                AccountTransactionType.DEBIT to -5_000L,
+                AccountTransactionType.COMPENSATION to 5_000L,
+            )
+        }
+    }
 }

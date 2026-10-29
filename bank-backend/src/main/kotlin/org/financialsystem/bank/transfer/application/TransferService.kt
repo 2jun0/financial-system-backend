@@ -18,7 +18,6 @@ import org.financialsystem.bank.transfer.infrastructure.TransferRepository
 import org.financialsystem.bank.transfer.presentation.dto.TransferResponse
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionOperations
 import java.time.Instant
@@ -124,7 +123,10 @@ class TransferService(
         transferKey: String,
         settlementState: SettlementState,
     ): TransferResponse {
-        val transfer = transferRepository.findByTransferKey(transferKey)!!
+        val transfer = transferRepository.findByTransferKeyForUpdate(transferKey)!!
+        if (transfer.state != TransferState.TRANSFERRING) {
+            return TransferResponse.from(transfer)
+        }
 
         when (settlementState) {
             SettlementState.SETTLED -> transfer.succeed()
@@ -139,11 +141,13 @@ class TransferService(
     }
 
     private fun compensateForFailure(transfer: Transfer) {
-        val account = accountRepository.findByIdOrNull(transfer.sourceAccountId)!!
+        val creditedCount = accountRepository.credit(transfer.sourceAccountId, transfer.amount, Instant.now())
+        check(creditedCount == 1) { "송금 계좌를 찾을 수 없습니다. accountId=${transfer.sourceAccountId}" }
+
         val amount = PositiveAmount(transfer.amount)
         val accountTransaction =
             AccountTransaction.recordCompensation(
-                accountId = account.id!!,
+                accountId = transfer.sourceAccountId,
                 transferKey = transfer.transferKey,
                 recipientBankCode = transfer.recipientBankCode,
                 recipientAccountNumber = transfer.recipientAccountNumber,
@@ -151,6 +155,5 @@ class TransferService(
             )
 
         accountTransactionRepository.save(accountTransaction)
-        account.credit(amount)
     }
 }

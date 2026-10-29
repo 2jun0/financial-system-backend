@@ -36,7 +36,6 @@ import org.mockito.kotlin.verify
 import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.transaction.support.TransactionOperations
 import java.time.Instant
-import java.util.Optional
 import kotlin.test.Test
 
 @ExtendWith(MockitoExtension::class)
@@ -117,7 +116,7 @@ class TransferServiceTest {
                     savedTransfer = it
                 }
             }
-            given(transferRepository.findByTransferKey(any())).willAnswer { savedTransfer }
+            given(transferRepository.findByTransferKeyForUpdate(any())).willAnswer { savedTransfer }
             given(settlementClient.requestSettlement(any()))
                 .willReturn(SettlementResponse(transferKey, SettlementState.SETTLED))
 
@@ -154,12 +153,6 @@ class TransferServiceTest {
         @Test
         fun `결제가 거절되면 잔액을 복구하고 보상 내역과 송금 실패 상태를 반영한다`() {
             // given
-            val initialBalance = account.balance
-            val debitedAccount =
-                Account.create(sourceAccountNumber, customerId, "출금 계좌").apply {
-                    ReflectionTestUtils.setField(this, "id", sourceAccountId)
-                    credit(PositiveAmount(initialBalance - amount.value))
-                }
             lateinit var savedTransfer: Transfer
             given(accountRepository.findByAccountNumber(any())).willReturn(account)
             given(accountRepository.debitIfSufficientBalance(eq(sourceAccountNumber), eq(customerId), eq(amount.value), any()))
@@ -170,8 +163,8 @@ class TransferServiceTest {
                     savedTransfer = it
                 }
             }
-            given(transferRepository.findByTransferKey(any())).willAnswer { savedTransfer }
-            given(accountRepository.findById(any())).willReturn(Optional.of(debitedAccount))
+            given(transferRepository.findByTransferKeyForUpdate(any())).willAnswer { savedTransfer }
+            given(accountRepository.credit(eq(sourceAccountId), eq(amount.value), any())).willReturn(1)
             given(settlementClient.requestSettlement(any()))
                 .willReturn(SettlementResponse(transferKey, SettlementState.REJECTED))
 
@@ -188,7 +181,7 @@ class TransferServiceTest {
 
             assertThat(savedTransfer.state).isEqualTo(TransferState.FAILED)
 
-            assertThat(debitedAccount.balance).isEqualTo(initialBalance)
+            verify(accountRepository).credit(eq(sourceAccountId), eq(amount.value), any())
 
             assertThat(compensation.transferKey).isEqualTo(transferKey)
             assertThat(compensation.accountId).isEqualTo(sourceAccountId)
