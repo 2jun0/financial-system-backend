@@ -27,6 +27,7 @@ import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
@@ -94,7 +95,6 @@ class TransferRecoveryServiceTest {
             given(settlementClient.batchGetSettlementStates(BatchGetSettlementStatesRequest(bankCode, transferKeys)))
                 .willReturn(BatchGetSettlementStatesResponse(mapOf(transfer.transferKey to SettlementState.SETTLED)))
             given(transferRepository.findAllByTransferKeyIn(transferKeys)).willReturn(listOf(transfer))
-            given(accountRepository.findAllById(listOf(account.id!!))).willReturn(listOf(account))
 
             // when
             transferRecoveryService.recoverUnresolvedTransfers()
@@ -116,14 +116,13 @@ class TransferRecoveryServiceTest {
                     createdAt = createdAtBefore.minusSeconds(1),
                 )
             val transferKeys = listOf(transfer.transferKey)
-            val initialBalance = account.balance
             val states = if (state == null) emptyMap() else mapOf(transfer.transferKey to state)
             given(transferRepository.findRecoveryTargets(any(), any(), any(), any(), any()))
                 .willReturn(listOf(transfer), emptyList())
             given(settlementClient.batchGetSettlementStates(BatchGetSettlementStatesRequest(bankCode, transferKeys)))
                 .willReturn(BatchGetSettlementStatesResponse(states))
             given(transferRepository.findAllByTransferKeyIn(transferKeys)).willReturn(listOf(transfer))
-            given(accountRepository.findAllById(listOf(account.id!!))).willReturn(listOf(account))
+            given(accountRepository.credit(eq(transfer.sourceAccountId), eq(transfer.amount), any())).willReturn(1)
 
             // when
             transferRecoveryService.recoverUnresolvedTransfers()
@@ -134,7 +133,7 @@ class TransferRecoveryServiceTest {
             val compensation = transactionCaptor.firstValue
 
             assertThat(transfer.state).isEqualTo(TransferState.FAILED)
-            assertThat(account.balance).isEqualTo(initialBalance + transfer.amount)
+            verify(accountRepository).credit(transfer.sourceAccountId, transfer.amount, now)
             assertThat(compensation.type).isEqualTo(AccountTransactionType.COMPENSATION)
             assertThat(compensation.transferKey).isEqualTo(transfer.transferKey)
             assertThat(compensation.accountId).isEqualTo(transfer.sourceAccountId)
@@ -158,7 +157,6 @@ class TransferRecoveryServiceTest {
             given(settlementClient.batchGetSettlementStates(BatchGetSettlementStatesRequest(bankCode, transferKeys)))
                 .willReturn(BatchGetSettlementStatesResponse(mapOf(transfer.transferKey to SettlementState.RECIPIENT_VALIDATION_PENDING)))
             given(transferRepository.findAllByTransferKeyIn(transferKeys)).willReturn(listOf(transfer))
-            given(accountRepository.findAllById(listOf(account.id!!))).willReturn(listOf(account))
 
             // when
             transferRecoveryService.recoverUnresolvedTransfers()

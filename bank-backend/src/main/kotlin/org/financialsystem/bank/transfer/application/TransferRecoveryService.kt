@@ -1,6 +1,5 @@
 package org.financialsystem.bank.transfer.application
 
-import org.financialsystem.bank.account.domain.Account
 import org.financialsystem.bank.account.domain.AccountTransaction
 import org.financialsystem.bank.account.infrastructure.AccountRepository
 import org.financialsystem.bank.account.infrastructure.AccountTransactionRepository
@@ -73,28 +72,26 @@ class TransferRecoveryService(
         settlementStates: Map<String, SettlementState>,
     ) {
         val transfers = transferRepository.findAllByTransferKeyIn(transferKeys)
-        val accounts = accountRepository.findAllById(transfers.map { it.sourceAccountId }).associateBy { it.id }
 
         for (transfer in transfers) {
             val state = settlementStates[transfer.transferKey]
             if (state == SETTLED) {
                 transfer.succeed()
             } else if (state == REJECTED || state == null) {
-                val account = accounts.getValue(transfer.sourceAccountId)
-                compensateForFailure(transfer, account)
+                compensateForFailure(transfer)
                 transfer.fail()
             }
         }
     }
 
-    private fun compensateForFailure(
-        transfer: Transfer,
-        account: Account,
-    ) {
+    private fun compensateForFailure(transfer: Transfer) {
+        val creditedCount = accountRepository.credit(transfer.sourceAccountId, transfer.amount, Instant.now(clock))
+        check(creditedCount == 1) { "송금 계좌를 찾을 수 없습니다. accountId=${transfer.sourceAccountId}" }
+
         val amount = PositiveAmount(transfer.amount)
         val accountTransaction =
             AccountTransaction.recordCompensation(
-                accountId = account.id!!,
+                accountId = transfer.sourceAccountId,
                 transferKey = transfer.transferKey,
                 recipientBankCode = transfer.recipientBankCode,
                 recipientAccountNumber = transfer.recipientAccountNumber,
@@ -102,6 +99,5 @@ class TransferRecoveryService(
             )
 
         accountTransactionRepository.save(accountTransaction)
-        account.credit(amount)
     }
 }
