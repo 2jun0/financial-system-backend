@@ -116,7 +116,7 @@ class TransferServiceTest {
                     savedTransfer = it
                 }
             }
-            given(transferRepository.findByTransferKey(any())).willAnswer { savedTransfer }
+            given(transferRepository.findByTransferKeyForUpdate(any())).willAnswer { savedTransfer }
             given(settlementClient.requestSettlement(any()))
                 .willReturn(SettlementResponse(transferKey, SettlementState.SETTLED))
 
@@ -163,7 +163,7 @@ class TransferServiceTest {
                     savedTransfer = it
                 }
             }
-            given(transferRepository.findByTransferKey(any())).willAnswer { savedTransfer }
+            given(transferRepository.findByTransferKeyForUpdate(any())).willAnswer { savedTransfer }
             given(accountRepository.credit(eq(sourceAccountId), eq(amount.value), any())).willReturn(1)
             given(settlementClient.requestSettlement(any()))
                 .willReturn(SettlementResponse(transferKey, SettlementState.REJECTED))

@@ -61,26 +61,28 @@ class TransferRecoveryService(
                         unresolvedTransferKeys,
                     ),
                 )
-            transactionOperations.executeWithoutResult {
-                batchRecoverUnresolvedTransfers(unresolvedTransferKeys, response.states)
+            for (transferKey in unresolvedTransferKeys) {
+                transactionOperations.executeWithoutResult {
+                    recoverUnresolvedTransfer(transferKey, response.states[transferKey])
+                }
             }
         }
     }
 
-    private fun batchRecoverUnresolvedTransfers(
-        transferKeys: List<String>,
-        settlementStates: Map<String, SettlementState>,
+    private fun recoverUnresolvedTransfer(
+        transferKey: String,
+        settlementState: SettlementState?,
     ) {
-        val transfers = transferRepository.findAllByTransferKeyIn(transferKeys)
+        val transfer = transferRepository.findByTransferKeyForUpdate(transferKey) ?: return
+        if (transfer.state != TransferState.TRANSFERRING) {
+            return
+        }
 
-        for (transfer in transfers) {
-            val state = settlementStates[transfer.transferKey]
-            if (state == SETTLED) {
-                transfer.succeed()
-            } else if (state == REJECTED || state == null) {
-                compensateForFailure(transfer)
-                transfer.fail()
-            }
+        if (settlementState == SETTLED) {
+            transfer.succeed()
+        } else if (settlementState == REJECTED || settlementState == null) {
+            compensateForFailure(transfer)
+            transfer.fail()
         }
     }
 

@@ -123,7 +123,10 @@ class TransferService(
         transferKey: String,
         settlementState: SettlementState,
     ): TransferResponse {
-        val transfer = transferRepository.findByTransferKey(transferKey)!!
+        val transfer = transferRepository.findByTransferKeyForUpdate(transferKey)!!
+        if (transfer.state != TransferState.TRANSFERRING) {
+            return TransferResponse.from(transfer)
+        }
 
         when (settlementState) {
             SettlementState.SETTLED -> transfer.succeed()

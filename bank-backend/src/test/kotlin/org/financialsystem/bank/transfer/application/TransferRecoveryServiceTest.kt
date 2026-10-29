@@ -94,7 +94,7 @@ class TransferRecoveryServiceTest {
                 .willReturn(listOf(transfer), emptyList())
             given(settlementClient.batchGetSettlementStates(BatchGetSettlementStatesRequest(bankCode, transferKeys)))
                 .willReturn(BatchGetSettlementStatesResponse(mapOf(transfer.transferKey to SettlementState.SETTLED)))
-            given(transferRepository.findAllByTransferKeyIn(transferKeys)).willReturn(listOf(transfer))
+            given(transferRepository.findByTransferKeyForUpdate(transfer.transferKey)).willReturn(transfer)
 
             // when
             transferRecoveryService.recoverUnresolvedTransfers()
@@ -121,7 +121,7 @@ class TransferRecoveryServiceTest {
                 .willReturn(listOf(transfer), emptyList())
             given(settlementClient.batchGetSettlementStates(BatchGetSettlementStatesRequest(bankCode, transferKeys)))
                 .willReturn(BatchGetSettlementStatesResponse(states))
-            given(transferRepository.findAllByTransferKeyIn(transferKeys)).willReturn(listOf(transfer))
+            given(transferRepository.findByTransferKeyForUpdate(transfer.transferKey)).willReturn(transfer)
             given(accountRepository.credit(eq(transfer.sourceAccountId), eq(transfer.amount), any())).willReturn(1)
 
             // when
@@ -156,7 +156,7 @@ class TransferRecoveryServiceTest {
                 .willReturn(listOf(transfer), emptyList())
             given(settlementClient.batchGetSettlementStates(BatchGetSettlementStatesRequest(bankCode, transferKeys)))
                 .willReturn(BatchGetSettlementStatesResponse(mapOf(transfer.transferKey to SettlementState.RECIPIENT_VALIDATION_PENDING)))
-            given(transferRepository.findAllByTransferKeyIn(transferKeys)).willReturn(listOf(transfer))
+            given(transferRepository.findByTransferKeyForUpdate(transfer.transferKey)).willReturn(transfer)
 
             // when
             transferRecoveryService.recoverUnresolvedTransfers()
